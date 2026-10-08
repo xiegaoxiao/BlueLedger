@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      蓝记启动主题。真正的设计系统在 core/designsystem 中用 Compose 实现；
+      这里只负责窗口背景、系统栏与启动期间的观感，避免白屏闪烁。
+    -->
+    <style name="Theme.BlueLedger" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/blueledger_background</item>
+        <item name="android:colorPrimary">@color/blueledger_primary</item>
+        <item name="android:colorAccent">@color/blueledger_primary</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <!--
+          android:windowLightNavigationBar 与 android:windowLayoutInDisplayCutoutMode
+          都是 API 27 才有的属性，因此放在 res/values-v27/themes.xml 里覆盖，
+          避免在 minSdk 26 上被 lint 判为 NewApi 错误（API 26 上这两个属性本就不存在）。
+        -->
+    </style>
+</resources>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 与 docs/UI设计说明.md 的 token 保持一致（总控维护，A2 在 Compose 中镜像同一组值） -->
+    <color name="blueledger_primary">#FF2563EB</color>
+    <color name="blueledger_primary_deep">#FF123B8D</color>
+    <color name="blueledger_primary_soft">#FFEFF5FF</color>
+    <color name="blueledger_background">#FFF6F8FC</color>
+    <color name="blueledger_surface">#FFFFFFFF</color>
+    <color name="blueledger_text_primary">#FF142542</color>
+    <color name="blueledger_text_secondary">#FF62738D</color>
+    <color name="blueledger_border">#FFE2EAF4</color>
+    <color name="blueledger_income">#FF16856B</color>
+    <color name="blueledger_risk">#FFC34646</color>
+</resources>

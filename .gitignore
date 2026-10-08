@@ -1,0 +1,56 @@
+# 构建产物
+build/
+*/build/
+.gradle/
+.kotlin/
+
+# 本机 SDK 路径（每台机器不同，绝不提交）
+local.properties
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# 日志与临时文件
+*.log
+captures/
+.externalNativeBuild/
+.cxx/
+
+# 多代理构建串行化锁（tools/gradle-run.ps1 使用）
+.gradle-build.lock
+
+# 本地验收包含真实账本和手机截图，不公开
+/artifacts/
+/ui/
+/tools/*
+!/tools/offline-compose-mapping.init.gradle
+
+# 仅公开面向开发者的说明与虚构测试预览
+/docs/*
+!/docs/开源构建说明.md
+!/docs/架构说明.md
+!/docs/images/
+!/docs/ci/
+
+# 密钥、个人配置和账本文件
+.env
+.env.*
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+*.blueledger.json
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.apk
+*.aab
+*.hprof
+.codex/
+.agents/
+.build-tools/

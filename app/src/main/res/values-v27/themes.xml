@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      API 27+ 才支持的两个窗口属性在这里覆盖。
+      放在 values-v27 而不是 values，是为了在 minSdk 26 下不触发 lint 的 NewApi 错误：
+      API 26 设备上这两个属性不存在，引用它们既无效果也会被判为不可用 API。
+    -->
+    <style name="Theme.BlueLedger" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/blueledger_background</item>
+        <item name="android:colorPrimary">@color/blueledger_primary</item>
+        <item name="android:colorAccent">@color/blueledger_primary</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <!-- API 27+：浅色导航栏图标，避免透明导航栏上的三键导航图标不可见 -->
+        <item name="android:windowLightNavigationBar">true</item>
+        <!-- API 27+：刘海屏下允许内容延伸到短边区域 -->
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
+</resources>

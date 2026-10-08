@@ -1,0 +1,26 @@
+// 当前机器已有完整的 Compose 映射工具 JAR，但缺少 Gradle 离线模块元数据。
+// 仅替换构建辅助工具的 classpath，不修改应用运行时依赖或跳过映射生成。
+// 使用版本与工具 POM 一致：Compose 2.4.20 / stdlib 2.2.21 / ASM 9.9.1。
+gradle.projectsEvaluated {
+    def app = gradle.rootProject.findProject(':app')
+    def mappingClasspath = app.configurations.findByName('composeMappingProducerClasspath')
+    if (mappingClasspath == null) return
+
+    def modules = [
+        ['org.jetbrains.kotlin', 'compose-group-mapping', '2.4.20'],
+        ['org.jetbrains.kotlin', 'kotlin-stdlib', '2.2.21'],
+        ['org.ow2.asm', 'asm-tree', '9.9.1'],
+        ['org.ow2.asm', 'asm', '9.9.1'],
+    ]
+    def jars = modules.collect { module ->
+        def (group, artifact, version) = module
+        def directory = new File(gradle.gradleUserHomeDir, "caches/modules-2/files-2.1/${group}/${artifact}/${version}")
+        def matches = app.fileTree(directory) { include "**/${artifact}-${version}.jar" }.files
+        if (matches.size() != 1) {
+            throw new GradleException("Expected one cached ${group}:${artifact}:${version} JAR, found ${matches.size()}")
+        }
+        matches.first()
+    }
+    mappingClasspath.dependencies.clear()
+    mappingClasspath.dependencies.add(app.dependencies.create(app.files(jars)))
+}
