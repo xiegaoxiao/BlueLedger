@@ -26,8 +26,8 @@ import com.blueledger.app.core.model.CategoryIcons
  *
  * 合法 key 由 [CategoryIcons] 定义（总控维护的唯一权威列表）；
  * 本对象只负责渲染，未识别的 key 回落到兜底图形，绝不因为备份里
- * 出现未知 key 而崩溃。分类图标统一使用蓝色与浅蓝底
- * （docs/UI设计说明.md §3.1），不为每个分类引入新的高饱和品牌色。
+ * 出现未知 key 而崩溃。分类图标统一使用蓝色与浅蓝底，
+ * 不为每个分类引入新的高饱和品牌色。
  */
 object LedgerIcons {
 

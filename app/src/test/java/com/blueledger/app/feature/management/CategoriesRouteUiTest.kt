@@ -184,7 +184,7 @@ class CategoriesRouteUiTest {
         listOf("常用", "收入", "生活", "其他").forEach { title ->
             composeRule.onNodeWithTag(ManagementTags.categoryIconGroup(title)).assertExists()
         }
-        // 名称为空时参考应用的「完成」不可点。
+        // 名称为空时「完成」不可点。
         composeRule.onNodeWithTag(ManagementTags.CATEGORIES_SAVE).assertIsNotEnabled()
 
         composeRule.onNodeWithTag(ManagementTags.CATEGORIES_NAME_FIELD).performTextInput("夜宵")

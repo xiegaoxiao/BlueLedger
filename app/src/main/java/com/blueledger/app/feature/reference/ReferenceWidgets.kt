@@ -81,7 +81,7 @@ internal fun <V> ReferenceSegmentedControl(options: List<V>, selected: V, label:
 }
 
 /**
- * 与参考应用一致的金额写法：整数分 → 去千分位、去掉多余小数零（`1250` → `12.5`，`2600` → `26`）。
+ * 金额展示规则：整数分 → 去千分位、去掉多余小数零（`1250` → `12.5`，`2600` → `26`）。
  * 只用于展示，不参与任何计算或写入。
  */
 internal fun referenceAmountText(cent: Long): String =

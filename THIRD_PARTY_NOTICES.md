@@ -12,4 +12,4 @@ BlueLedger source is licensed under Apache-2.0. Dependencies are distributed und
 
 Dependency coordinates and pinned versions are in `gradle/libs.versions.toml` and `app/build.gradle.kts`. Transitive dependencies may have additional licenses; consult the notices and license metadata distributed with the resolved libraries when redistributing binaries.
 
-Category and navigation icons are provided by AndroidX Material Icons. The launcher and notification icons are defined by this project's vector resources. No Shark Accounting application code, logo, reference screenshots or personal ledger exports are distributed in this repository.
+Category and navigation icons are provided by AndroidX Material Icons. The launcher and notification icons are defined by this project's vector resources. Public UI previews are generated from synthetic ledger fixtures. This repository does not distribute third-party accounting product code, logos, brand assets, UI screenshots or users' ledger exports. Project descriptions do not imply affiliation, authorization or endorsement by any third-party product.

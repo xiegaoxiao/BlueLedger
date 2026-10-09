@@ -391,7 +391,7 @@ private fun ArchivedCategoryRow(
 
 // ───────────────────────── 编辑页 ─────────────────────────
 
-/** 参考应用的整页式编辑器：顶栏取消／完成、大图标预览、按分组排列的圆形图标。 */
+/** 分类整页编辑器：顶栏取消／完成、大图标预览、按分组排列的圆形图标。 */
 @Composable
 private fun CategoryEditorPage(
     editor: CategoryEditorState,

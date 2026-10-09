@@ -91,7 +91,7 @@ object BlueLedgerTokens {
     val CardElevation: Dp = 1.dp
     val CardElevationRaised: Dp = 3.dp
 
-    // 参考页面品牌头部与图标尺寸。
+    // 页面品牌头部与图标尺寸。
     val BrandShortcutOverlap: Dp = 20.dp
     val ShortcutIconContainer: Dp = 32.dp
     val ProfileAvatar: Dp = 54.dp

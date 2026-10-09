@@ -111,7 +111,7 @@ class ReferenceUiTest {
         val saved = seed(); open(); await("overview_row_${saved.transactionId}")
         ui.onNodeWithTag("tab_statistics").performClick(); await("stats_rank_cat_expense_food")
         listOf("stats_tab_week", "stats_tab_month", "stats_tab_year").forEach { ui.onNodeWithTag(it).assertIsDisplayed() }
-        // 参考应用的写法：一行「总支出：」+ 去尾零金额，不是两位小数。
+        // 汇总行展示「总支出：」和去掉多余小数零的金额。
         ui.onNodeWithTag("stats_summary_card").assertTextContains("总支出：12.5", substring = true)
         ui.onNodeWithTag("stats_tab_month").performClick(); await("stats_rank_cat_expense_food")
         ui.onNodeWithTag("stats_summary_card").assertTextContains("总支出：12.5", substring = true)
@@ -146,7 +146,7 @@ class ReferenceUiTest {
         ui.onNodeWithText("账户展示设置").assertIsDisplayed()
         ui.onNodeWithText("开启后，主账本记账时可选收支账户").assertIsDisplayed()
         ui.onAllNodesWithText("不关联账户").assertCountEquals(2)
-        // 参考应用：关闭账户关联时下面三行置灰不可点。
+        // 关闭账户关联时下面三行置灰不可点。
         ui.onNodeWithText("默认支出账户").assertIsNotEnabled()
         ui.onNodeWithText("账户展示设置").assertIsNotEnabled()
         snapshot("settings-accounts")
