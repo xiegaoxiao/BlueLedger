@@ -19,7 +19,7 @@ object BackupLimits {
     const val PRODUCT_ID: String = "blueledger"
 
     /** 备份文件格式版本。与 Room 数据库 schema 版本**独立**管理。 */
-    const val BACKUP_SCHEMA_VERSION: Int = 2
+    const val BACKUP_SCHEMA_VERSION: Int = 3
 
     /** 单个备份文件最大 32 MiB。 */
     const val MAX_BYTES: Long = 32L * 1024L * 1024L
@@ -58,6 +58,8 @@ data class BackupEnvelope(
     val accounts: List<BackupAccountDto> = emptyList(),
     val budgets: List<BackupBudgetDto> = emptyList(),
     val settings: BackupSettingsDto,
+    val advanced: com.blueledger.app.core.model.AdvancedLedgerSettings = com.blueledger.app.core.model.AdvancedLedgerSettings(),
+    val recycleBin: List<BackupDeletedTransactionDto> = emptyList(),
 )
 
 @Serializable
@@ -72,6 +74,9 @@ data class BackupTransactionDto(
     val createdAt: String,
     val updatedAt: String,
 )
+
+@Serializable
+data class BackupDeletedTransactionDto(val transaction: BackupTransactionDto, val deletedAt: String)
 
 @Serializable
 data class BackupCategoryDto(

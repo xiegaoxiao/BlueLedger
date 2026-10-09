@@ -1,5 +1,6 @@
 package com.blueledger.app.data.repository
 
+import com.blueledger.app.core.model.validationError
 import com.blueledger.app.core.model.AccountKind
 import com.blueledger.app.core.model.CategoryIcons
 import com.blueledger.app.core.model.FieldRef
@@ -174,7 +175,12 @@ internal object SnapshotValidator {
 
         validateCategories(snapshot)?.let { return it }
         validateAccounts(snapshot, today)?.let { return it }
-        validateTransactions(snapshot, categoryById, today)?.let { return it }
+        validateTransactions(snapshot.copy(transactions = snapshot.transactions + snapshot.recycleBin), categoryById, today)?.let { return it }
+        // 时间来自设备墙钟，回拨后删除时间可早于创建时间；不可因此拒绝合法旧账本。
+        if (snapshot.recycleBin.any { it.deletedAt == null }) return backup(ValidationCode.BACKUP_DATE_INVALID, "回收站缺少删除时间")
+        snapshot.advanced.validationError(snapshot.categories, snapshot.accounts, (snapshot.transactions + snapshot.recycleBin).map { it.id }.toSet())?.let {
+            return backup(ValidationCode.BACKUP_FIELD_TYPE_INVALID, it)
+        }
         validateBudgets(snapshot)?.let { return it }
 
         val defaultAccount = accountById[snapshot.settings.defaultAccountId]

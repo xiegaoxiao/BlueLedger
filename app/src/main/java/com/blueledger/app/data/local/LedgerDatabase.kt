@@ -17,6 +17,7 @@ import androidx.room.TypeConverters
  *   需要时可作为迁移测试的黄金文件。
  *
  * v2 为资产备注、余额调整历史和每月预算增加字段；v1 → v2 使用显式迁移保留旧账本。
+ * v3 增加高级配置表；v2 → v3 不改既有表及软删除记录。
  */
 @Database(
     entities = [
@@ -25,6 +26,7 @@ import androidx.room.TypeConverters
         AccountEntity::class,
         BudgetEntity::class,
         SettingsEntity::class,
+        AdvancedSettingsEntity::class,
     ],
     version = LedgerDatabase.VERSION,
     exportSchema = true,
@@ -42,8 +44,10 @@ abstract class LedgerDatabase : RoomDatabase() {
 
     abstract fun settingsDao(): SettingsDao
 
+    abstract fun advancedSettingsDao(): AdvancedSettingsDao
+
     companion object {
-        const val VERSION: Int = 2
+        const val VERSION: Int = 3
 
         const val DATABASE_NAME: String = "blueledger.db"
 

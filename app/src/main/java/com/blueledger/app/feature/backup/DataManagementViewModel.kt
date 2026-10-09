@@ -23,6 +23,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -39,6 +42,7 @@ import kotlinx.coroutines.launch
  * - 恢复失败（含事务失败）保留原库，提示具体原因并给出重试。
  * - 任何操作进行中禁用全部入口。
  */
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class DataManagementViewModel(
     private val repository: LedgerRepository,
     private val clock: Clock,
@@ -84,7 +88,6 @@ class DataManagementViewModel(
     private fun startObserving() {
         observeJobs.forEach { it.cancel() }
         _state.update { it.copy(loading = true, loadError = null) }
-        val month = clock.currentYearMonth()
         observeJobs = listOf(
             launchObservation {
                 repository.observeTransactions(TransactionFilter(limit = 1)).collect { page ->
@@ -92,16 +95,14 @@ class DataManagementViewModel(
                 }
             },
             launchObservation {
-                repository.observeTransactions(TransactionFilter(yearMonth = month, limit = 1)).collect { page ->
-                    _state.update { it.copy(currentMonthTransactionCount = page.totalCount) }
-                }
-            },
-            launchObservation {
-                repository.observeMonthSummary(month).collect { summary ->
-                    _state.update {
-                        it.copy(monthIncomeCent = summary.incomeCent, monthExpenseCent = summary.expenseCent)
+                repository.observeAdvancedSettings().map { com.blueledger.app.core.model.LedgerPeriods.monthOf(clock.today(), it.monthStartDay) }
+                    .distinctUntilChanged().flatMapLatest { month ->
+                        combine(repository.observeTransactions(TransactionFilter(yearMonth = month, limit = 1)), repository.observeMonthSummary(month)) { page, summary -> Triple(month, page.totalCount, summary) }
+                    }.collect { (month, count, summary) ->
+                        _state.update {
+                            it.copy(currentMonth = month, currentMonthTransactionCount = count, monthIncomeCent = summary.incomeCent, monthExpenseCent = summary.expenseCent)
+                        }
                     }
-                }
             },
             launchObservation {
                 combine(
@@ -231,10 +232,10 @@ class DataManagementViewModel(
                     text = text,
                     fileName = BackupFileNames.backupFileName(today),
                     dialogLines = listOf(
-                        "范围：全部有效账单 + 全部分类、账户、预算与设置",
+                        "范围：全部有效账单、回收站 + 全部分类、账户、预算与设置",
                         "有效账单 $count 笔、分类 ${snapshot.categories.size} 个、" +
                             "账户 ${snapshot.accounts.size} 个、预算 ${snapshot.budgets.size} 个月",
-                        "不含软删除账单与页面草稿；归档的分类与账户仍会保留",
+                        "包含标签、分类预算、自动记账规则与月起始日；归档配置保留，不含页面草稿",
                         "文件只保存在你选择的位置，应用不会上传",
                     ),
                     recordCount = count,
@@ -245,7 +246,7 @@ class DataManagementViewModel(
             ExportKind.CSV_CURRENT_MONTH, ExportKind.CSV_ALL -> {
                 val csvScope =
                     if (kind == ExportKind.CSV_CURRENT_MONTH) CsvScope.CURRENT_MONTH else CsvScope.ALL
-                val month = clock.currentYearMonth()
+                val month = com.blueledger.app.core.model.LedgerPeriods.monthOf(today, snapshot.advanced.monthStartDay)
                 val csv = LedgerCsvExporter.build(snapshot, csvScope, month)
                 PreparedExport(
                     kind = kind,

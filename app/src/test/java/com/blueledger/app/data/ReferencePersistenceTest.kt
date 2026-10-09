@@ -105,7 +105,7 @@ class ReferencePersistenceTest : LedgerRoomTestBase() {
         val upgraded = LedgerDatabase.create(context, name)
         try {
             val sql = upgraded.openHelper.readableDatabase
-            assertEquals(2, sql.version)
+            assertEquals(LedgerDatabase.VERSION, sql.version)
             sql.query("SELECT amountCent,note FROM transactions WHERE id='original'").use { cursor -> assertTrue(cursor.moveToFirst()); assertEquals(1250L, cursor.getLong(0)); assertEquals("升级保留", cursor.getString(1)) }
             sql.query("SELECT name FROM categories WHERE id='cat_expense_food'").use { cursor -> assertTrue(cursor.moveToFirst()); assertEquals("家常饭", cursor.getString(0)) }
             sql.query("SELECT openingBalanceCent,note,openingHistory FROM accounts WHERE id='acc_default'").use { cursor -> assertTrue(cursor.moveToFirst()); assertEquals(5000L, cursor.getLong(0)); assertEquals("", cursor.getString(1)); assertEquals("", cursor.getString(2)) }

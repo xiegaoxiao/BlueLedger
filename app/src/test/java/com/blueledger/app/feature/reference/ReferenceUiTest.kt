@@ -107,6 +107,55 @@ class ReferenceUiTest {
         ui.onNodeWithTag("amount_display").assertTextEquals(entered)
         assertEquals(0, runBlocking { repository.observeTransactions(TransactionFilter()).first().items.size })
     }
+    @Test fun chartPageUsesSegmentedPeriodsAndReferenceSummaryLines() {
+        val saved = seed(); open(); await("overview_row_${saved.transactionId}")
+        ui.onNodeWithTag("tab_statistics").performClick(); await("stats_rank_cat_expense_food")
+        listOf("stats_tab_week", "stats_tab_month", "stats_tab_year").forEach { ui.onNodeWithTag(it).assertIsDisplayed() }
+        // 参考应用的写法：一行「总支出：」+ 去尾零金额，不是两位小数。
+        ui.onNodeWithTag("stats_summary_card").assertTextContains("总支出：12.5", substring = true)
+        ui.onNodeWithTag("stats_tab_month").performClick(); await("stats_rank_cat_expense_food")
+        ui.onNodeWithTag("stats_summary_card").assertTextContains("总支出：12.5", substring = true)
+        snapshot("chart-month")
+    }
+    @Test fun weeklyChartShowsAllSevenDaysAndKeepsRelativeLabelsWhenBrowsingHistory() {
+        seed(); open()
+        ui.onNodeWithTag("tab_statistics").performClick(); await("stats_rank_cat_expense_food")
+        val start = ChartRange.week(clock.today()).from
+        (0L..6L).forEach { day ->
+            ui.onNodeWithText("${start.plusDays(day).dayOfMonth}日").assertIsDisplayed()
+        }
+        ui.onNodeWithTag("stats_month_label").assertTextContains("本周")
+        val currentChartTop = ui.onNodeWithTag("reference_line_chart").fetchSemanticsNode().boundsInRoot.top
+        ui.onNodeWithText("上周").performClick()
+        ui.onNodeWithTag("stats_month_label").assertTextContains("上周")
+        ui.onNodeWithText("本周").assertDoesNotExist()
+        ui.waitUntil(5_000) {
+            ui.onNodeWithTag("reference_line_chart").fetchSemanticsNode().boundsInRoot.top == currentChartTop
+        }
+        ui.onNodeWithText("›").performClick()
+        ui.onNodeWithTag("stats_month_label").assertTextContains("本周")
+        ui.waitUntil(5_000) {
+            ui.onNodeWithTag("reference_line_chart").fetchSemanticsNode().boundsInRoot.top == currentChartTop
+        }
+    }
+    @Test fun accountSettingsRowsFollowReferenceAndDisableWhenUnlinked() {
+        open(); ui.onNodeWithTag("tab_mine").performClick(); await("mine_settings")
+        ui.onNodeWithTag("mine_settings").performClick()
+        ui.onNodeWithText("收支账户").performClick()
+        ui.onNodeWithText("收支账户设置").assertIsDisplayed()
+        ui.onNodeWithText("账户展示设置").assertIsDisplayed()
+        ui.onNodeWithText("开启后，主账本记账时可选收支账户").assertIsDisplayed()
+        ui.onAllNodesWithText("不关联账户").assertCountEquals(2)
+        // 参考应用：关闭账户关联时下面三行置灰不可点。
+        ui.onNodeWithText("默认支出账户").assertIsNotEnabled()
+        ui.onNodeWithText("账户展示设置").assertIsNotEnabled()
+        snapshot("settings-accounts")
+        ui.onNodeWithTag("account_association_switch").performClick()
+        assertTrue(ReferencePreferences(ui.activity).accountAssociation)
+        ui.waitForIdle()
+        ui.onNodeWithText("默认支出账户").assertIsEnabled()
+        ui.onNodeWithText("账户展示设置").assertIsEnabled()
+    }
     @Test fun chartDefaultPeriodUsesASeparateCheckedSelectionPage() {
         open(); ui.onNodeWithTag("tab_mine").performClick(); await("mine_settings")
         ui.onNodeWithTag("mine_settings").performClick()

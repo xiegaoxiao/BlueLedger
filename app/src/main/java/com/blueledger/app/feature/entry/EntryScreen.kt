@@ -198,7 +198,9 @@ fun EntryScreen(
         BackHandler(enabled = true) { viewModel.onBackPressed() }
     }
 
-    val pagePadding = if (LocalConfiguration.current.screenWidthDp < 360) {
+    val pagePadding = if (categoryFirst) {
+        LocalConfiguration.current.screenWidthDp.dp * BlueLedgerTokens.ReferenceCategoryInsetFraction
+    } else if (LocalConfiguration.current.screenWidthDp < 360) {
         BlueLedgerTokens.PageHorizontalCompact
     } else {
         BlueLedgerTokens.PageHorizontal
@@ -212,18 +214,19 @@ fun EntryScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             // 顶部安全区由总控 Scaffold 的 contentWindowInsets(Top + Horizontal) → innerPadding 统一提供；
             // 本页**不得**再叠加 statusBarsPadding()，否则顶部会多出一段状态栏高度（总控裁决 2026-10-07）。
-            if (categoryFirst) Box(Modifier.fillMaxWidth().background(BlueLedgerTokens.PrimarySoft).heightIn(min = 52.dp).testTag(TAG_ENTRY_TOP_BAR)) {
+            if (categoryFirst) Box(Modifier.fillMaxWidth().background(BlueLedgerTokens.Primary).heightIn(min = BlueLedgerTokens.ReferenceEntryTitleHeight).testTag(TAG_ENTRY_TOP_BAR)) {
                 Box(Modifier.width(166.dp).align(Alignment.Center)) {
                     ReferenceTabs(listOf(TransactionType.EXPENSE, TransactionType.INCOME), state.type,
                         { if (it.isExpense) "支出" else "收入" },
                         { amountPanelOpen = false; viewModel.onTypeSelected(it) },
-                        { if (it.isExpense) "type_expense" else "type_income" })
+                        { if (it.isExpense) "type_expense" else "type_income" }, onBrand = true)
                 }
-                TextButton(onClick = viewModel::onBackPressed, modifier = Modifier.align(Alignment.CenterEnd).testTag("btn_back")) { Text("取消", color = BlueLedgerTokens.TextPrimary) }
+                TextButton(onClick = viewModel::onBackPressed, modifier = Modifier.align(Alignment.CenterEnd).testTag("btn_back")) { Text("取消", color = BlueLedgerTokens.OnBrand) }
             } else LedgerTopBar(
                 title = if (state.isEditMode) "编辑" else "",
                 onBack = viewModel::onBackPressed,
-                modifier = Modifier.background(BlueLedgerTokens.PrimarySoft).testTag(TAG_ENTRY_TOP_BAR),
+                modifier = Modifier.background(BlueLedgerTokens.Primary).testTag(TAG_ENTRY_TOP_BAR),
+                contentColor = BlueLedgerTokens.OnBrand,
                 actions = {
                 LedgerSegmentedToggle(
                 options = listOf(TransactionType.EXPENSE, TransactionType.INCOME), selected = state.type,
@@ -322,7 +325,7 @@ private fun EntryFormSection(
             .testTag(TAG_ENTRY_FORM)
             .padding(horizontal = pagePadding),
     ) {
-        Spacer(Modifier.height(BlueLedgerTokens.SpaceM))
+        Spacer(Modifier.height(if (showDetails) BlueLedgerTokens.SpaceM else 0.dp))
 
         CategorySection(state = state, viewModel = viewModel, showHeading = showDetails, onSettings = onSettings)
 
@@ -349,7 +352,7 @@ private fun EntryFormSection(
 }
 
 @Composable
-private fun AmountCard(state: EntryUiState, onClick: () -> Unit) {
+private fun AmountCard(state: EntryUiState, onClick: () -> Unit, flat: Boolean = false) {
     val isIncome = state.type.isIncome
     val accent = if (isIncome) BlueLedgerTokens.Income else BlueLedgerTokens.Primary
     val amountScroll = rememberScrollState()
@@ -374,6 +377,7 @@ private fun AmountCard(state: EntryUiState, onClick: () -> Unit) {
             Text(
                 text = "¥",
                 style = LedgerTextStyles.amountPrefix,
+                fontSize = if (flat) BlueLedgerTokens.AmountMedium else LedgerTextStyles.amountPrefix.fontSize,
                 color = accent,
                 modifier = Modifier.padding(end = BlueLedgerTokens.SpaceXs),
             )
@@ -394,6 +398,7 @@ private fun AmountCard(state: EntryUiState, onClick: () -> Unit) {
                 Text(
                     text = state.amountDisplayText,
                     style = LedgerTextStyles.entryAmount,
+                    fontSize = if (flat) BlueLedgerTokens.AmountLarge else LedgerTextStyles.entryAmount.fontSize,
                     color = if (state.amount.isEmpty) LedgerTints.amountPlaceholder() else accent,
                     maxLines = 1,
                     softWrap = false,
@@ -455,12 +460,12 @@ private fun CategorySection(state: EntryUiState, viewModel: EntryViewModel, show
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(BlueLedgerTokens.SpaceS),
+                        .padding(vertical = if (showHeading) BlueLedgerTokens.SpaceXs else BlueLedgerTokens.SpaceM),
+                    horizontalArrangement = Arrangement.spacedBy(if (showHeading) BlueLedgerTokens.SpaceS else 0.dp),
                 ) {
                     rowItems.forEach { category ->
                         if (category.id == "__entry_settings") Column(Modifier.weight(1f).clickable { onSettings?.invoke() }
-                            .padding(vertical = 8.dp).testTag("entry_category_settings"), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            .padding(vertical = if (showHeading) BlueLedgerTokens.SpaceS else 0.dp).testTag("entry_category_settings"), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Box(Modifier.size(50.dp).clip(androidx.compose.foundation.shape.CircleShape).background(BlueLedgerTokens.Background), contentAlignment = Alignment.Center) {
                                 Icon(Icons.Outlined.Settings, null, tint = BlueLedgerTokens.TextPrimary)
                             }
@@ -473,6 +478,7 @@ private fun CategorySection(state: EntryUiState, viewModel: EntryViewModel, show
                             onClick = { viewModel.onCategorySelected(category.id) },
                             modifier = Modifier.weight(1f),
                             testTag = "category_" + category.id,
+                            verticalPadding = if (showHeading) BlueLedgerTokens.SpaceS else 0.dp,
                         )
                     }
                     repeat(columns - rowItems.size) {
@@ -764,7 +770,7 @@ private fun EntryBottomArea(
                         modifier = Modifier.width(112.dp), enabled = state.actionsEnabled,
                         loading = state.saving, testTag = TAG_SAVE_AND_NEW)
                 }
-                Box(Modifier.weight(1f)) { AmountCard(state, onClick = onOpenAmount) }
+                Box(Modifier.weight(1f)) { AmountCard(state, onClick = onOpenAmount, flat = flat) }
             }
             state.amountError?.let { LedgerErrorBanner(message = it, testTag = "error_amount") }
             Box(Modifier.padding(horizontal = if (flat) 16.dp else 0.dp)) { NoteRow(state, viewModel) }

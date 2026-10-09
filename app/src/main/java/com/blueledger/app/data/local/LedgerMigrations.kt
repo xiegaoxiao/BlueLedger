@@ -12,7 +12,7 @@ import androidx.room.migration.Migration
  * 3. 禁止 `fallbackToDestructiveMigration()`；缺失迁移时宁可启动失败也不丢账本。
  * 4. 新增迁移后必须补一个“升级保留数据”的测试。
  *
- * v1 是首版 schema，没有历史版本需要迁移，因此这里为空数组（不虚构无意义升级）。
+ * v1 是首版；v2 增加资产历史和月预算；v3 增加本地高级配置，全部显式迁移保留账本。
  */
 object LedgerMigrations {
 
@@ -27,5 +27,10 @@ object LedgerMigrations {
             }
         }
     }
-    val ALL: Array<Migration> = arrayOf(V1_TO_V2)
+    val V2_TO_V3: Migration = object : Migration(2, 3) {
+        override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS advanced_settings (id INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(id))")
+        }
+    }
+    val ALL: Array<Migration> = arrayOf(V1_TO_V2, V2_TO_V3)
 }

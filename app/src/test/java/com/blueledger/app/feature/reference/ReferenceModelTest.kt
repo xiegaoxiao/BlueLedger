@@ -20,6 +20,17 @@ class ReferenceModelTest {
         assertEquals(LocalDate.of(2026, 12, 21), range.previous().from)
     }
     @Test fun monthShiftsWithDifferentLengths() { assertEquals(LocalDate.of(2024, 2, 29), ChartRange.month(YearMonth.of(2024, 3)).previous().to) }
+    @Test fun accountingMonthAndYearChartsKeepCustomStartAcrossYearBoundary() {
+        val current = ChartRange.forPeriod(ChartPeriod.MONTH, LocalDate.of(2027, 1, 7), 15)
+        assertEquals(LocalDate.of(2026, 12, 15), current.from)
+        assertEquals(LocalDate.of(2027, 1, 14), current.to)
+        assertEquals(LocalDate.of(2027, 1, 15), current.next().from)
+        assertEquals(LocalDate.of(2026, 1, 15), ChartRange.forPeriod(ChartPeriod.YEAR, LocalDate.of(2027, 1, 7), 15).from)
+        val entry = row("custom", 1250, "food").let { it.copy(transaction = it.transaction.copy(occurredOn = LocalDate.of(2027, 1, 7))) }
+        val state = buildReferenceState(TransactionFilter(), TransactionPageState(listOf(entry), 1, false), MoneySummary(expenseCent = 1250, count = 1), 15)
+        assertEquals(YearMonth.of(2026, 12), state.months.single().month)
+        assertEquals(1250L, chartValues(state, ChartRange.year(2026, 15)).last())
+    }
     @Test fun averagesOnlyReachedDays() {
         assertEquals(100L, averageDaily(700, ChartRange.month(YearMonth.of(2026, 10)), date))
         assertNull(averageDaily(700, ChartRange.month(YearMonth.of(2026, 11)), date))

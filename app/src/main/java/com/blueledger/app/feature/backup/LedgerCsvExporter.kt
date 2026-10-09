@@ -54,7 +54,7 @@ object LedgerCsvExporter {
         val rows = snapshot.transactions
             .asSequence()
             .filter { it.deletedAt == null }
-            .filter { scope == CsvScope.ALL || YearMonth.from(it.occurredOn) == month }
+            .filter { scope == CsvScope.ALL || com.blueledger.app.core.model.LedgerPeriods.monthOf(it.occurredOn, snapshot.advanced.monthStartDay) == month }
             .sortedWith(
                 compareByDescending<LedgerTransaction> { it.occurredOn }
                     .thenByDescending { it.createdAt }

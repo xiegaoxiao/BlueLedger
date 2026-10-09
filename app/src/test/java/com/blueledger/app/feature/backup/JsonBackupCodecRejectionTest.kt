@@ -93,8 +93,8 @@ class JsonBackupCodecRejectionTest {
 
     @Test
     fun `版本不支持被拒绝 v2`() = assertRejected(
-        "schemaVersion=3",
-        BackupJson.edit(valid) { it.withInt("schemaVersion", 3) },
+        "schemaVersion 超过当前版本",
+        BackupJson.edit(valid) { it.withInt("schemaVersion", BackupLimits.BACKUP_SCHEMA_VERSION + 1) },
         ValidationCode.BACKUP_UNSUPPORTED_VERSION,
     )
 

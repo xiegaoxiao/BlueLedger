@@ -8,7 +8,6 @@ import androidx.compose.material.icons.outlined.CardGiftcard
 import androidx.compose.material.icons.outlined.DirectionsBus
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.LocalHospital
-import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.ShoppingBag
@@ -50,11 +49,11 @@ object LedgerIcons {
         "social" -> Icons.Outlined.People
         "travel" -> Icons.Outlined.Flight
         "tobacco" -> Icons.Outlined.LocalBar
-        "digital" -> Icons.Outlined.Devices
+        "digital" -> Icons.Outlined.Phonelink
         "car" -> Icons.Outlined.DirectionsCar
-        "books" -> Icons.Outlined.MenuBook
+        "books" -> Icons.Outlined.AutoStories
         "pet" -> Icons.Outlined.Pets
-        "cashgift" -> Icons.Outlined.Payments
+        "cashgift" -> Icons.Outlined.Redeem
         "present" -> Icons.Outlined.CardGiftcard
         "office" -> Icons.Outlined.Business
         "investment" -> Icons.Outlined.TrendingUp
@@ -66,7 +65,7 @@ object LedgerIcons {
         CategoryIcons.HOUSING -> Icons.Outlined.Home
         CategoryIcons.ENTERTAINMENT -> Icons.Outlined.SportsEsports
         CategoryIcons.MEDICAL -> Icons.Outlined.LocalHospital
-        CategoryIcons.STUDY -> Icons.Outlined.MenuBook
+        CategoryIcons.STUDY -> Icons.Outlined.AutoStories
         CategoryIcons.SALARY -> Icons.Outlined.AccountBalanceWallet
         CategoryIcons.BONUS -> Icons.Outlined.Star
         CategoryIcons.PART_TIME -> Icons.Outlined.Work

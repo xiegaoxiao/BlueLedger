@@ -2,6 +2,10 @@ package com.blueledger.app.data.repository
 
 import android.database.sqlite.SQLiteConstraintException
 import androidx.room.withTransaction
+import com.blueledger.app.core.model.*
+import com.blueledger.app.data.local.AdvancedSettingsEntity
+import kotlinx.serialization.json.Json
+import kotlinx.coroutines.flow.flatMapLatest
 import com.blueledger.app.core.contract.Clock
 import com.blueledger.app.core.contract.LedgerRepository
 import com.blueledger.app.core.model.AccountCommand
@@ -75,6 +79,7 @@ import java.util.UUID
  * 4. 业务校验在本层执行（[LedgerValidation] / [SnapshotValidator]），不信任 UI。
  * 5. 分页只影响 [observeTransactions] 的 items，[observeFilteredSummary] 忽略分页。
  */
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class LedgerRepositoryImpl(
     private val db: LedgerDatabase,
     private val clock: Clock,
@@ -89,11 +94,81 @@ class LedgerRepositoryImpl(
     private val budgetDao = db.budgetDao()
     private val settingsDao = db.settingsDao()
     private val undoRegistry = UndoRegistry()
+    private val advancedDao = db.advancedSettingsDao()
+    private val advancedJson = Json { encodeDefaults = true }
+    private fun decodeAdvanced(row: AdvancedSettingsEntity?): AdvancedLedgerSettings = row?.let {
+        advancedJson.decodeFromString(AdvancedLedgerSettings.serializer(), it.payload)
+    } ?: AdvancedLedgerSettings()
+    private suspend fun readAdvanced() = decodeAdvanced(advancedDao.get())
+    private suspend fun writeAdvanced(value: AdvancedLedgerSettings) = advancedDao.put(AdvancedSettingsEntity(payload = advancedJson.encodeToString(AdvancedLedgerSettings.serializer(), value)))
+
+    override fun observeAdvancedSettings(): Flow<AdvancedLedgerSettings> = advancedDao.observe().map(::decodeAdvanced).distinctUntilChanged()
+
+    override suspend fun updateAdvancedSettings(change: (AdvancedLedgerSettings) -> AdvancedLedgerSettings): MutationResult = writeOperation({ MutationResult.Failure(it) }) {
+        db.withTransaction {
+            val value = change(readAdvanced())
+            val error = value.validationError(categoryDao.listAll().map { it.toModel() }, accountDao.listAll().map { it.toModel() }, transactionDao.getAll().map { it.id }.toSet())
+            if (error != null) return@withTransaction MutationResult.Failure(LedgerError.Storage(error))
+            writeAdvanced(value)
+            MutationResult.Success()
+        }
+    }
+
+    override fun observeRecycleBin(): Flow<List<LedgerTransaction>> = transactionDao.observeDeleted().map { rows -> rows.map { it.toModel() } }
+
+    override suspend fun restoreFromRecycleBin(id: String): MutationResult = writeOperation({ MutationResult.Failure(it) }) {
+        db.withTransaction {
+            val original = transactionDao.getById(id) ?: return@withTransaction MutationResult.Failure(LedgerError.Storage("回收站记录不存在"))
+            if (original.deletedAtEpochMillis == null) return@withTransaction MutationResult.Failure(LedgerError.Storage("记录已经恢复"))
+            val changed = transactionDao.restoreDeleted(id, original.type, original.amountCent, original.categoryId, original.accountId, original.occurredOnEpochDay, original.note, original.noteKey, clock.now().toEpochMilli())
+            if (changed == 1) MutationResult.Success(id) else MutationResult.Failure(LedgerError.Storage("恢复失败"))
+        }
+    }
+
+    override suspend fun permanentlyDeleteTransaction(id: String): MutationResult = writeOperation({ MutationResult.Failure(it) }) {
+        db.withTransaction {
+            if (transactionDao.permanentlyDelete(id) != 1) return@withTransaction MutationResult.Failure(LedgerError.Storage("仅可永久删除回收站内的记录"))
+            val value = readAdvanced()
+            writeAdvanced(value.copy(transactionTags = value.transactionTags - id))
+            MutationResult.Success(id)
+        }
+    }
+
+    override suspend fun processRecurringTransactions(): MutationResult = writeOperation({ MutationResult.Failure(it) }) {
+        db.withTransaction {
+            val settings = readAdvanced()
+            var remaining = 366
+            val rules = settings.recurringRules.map { original ->
+                var rule = original
+                var date = LocalDate.parse(rule.nextDate)
+                while (rule.enabled && date <= clock.today() && remaining > 0) {
+                    val draft = TransactionDraft(TransactionType.valueOf(rule.type), rule.amountCent, rule.categoryId, rule.accountId, date, rule.note)
+                    val error = validateDraft(draft, original = null)
+                    if (error != null) { rule = rule.copy(enabled = false, lastError = error.message); break }
+                    val identity = "recurring:${rule.id}:$date"
+                    if (transactionDao.getById(identity) == null) {
+                        val now = clock.now()
+                        transactionDao.insert(LedgerTransaction(identity, draft.type, draft.amountCent, draft.categoryId, draft.accountId, date, draft.note, now, now).toEntity(requestId = identity))
+                    }
+                    remaining--
+                    date = rule.following(date)
+                    rule = rule.copy(nextDate = date.toString(), lastError = null)
+                }
+                rule
+            }
+            if (rules != settings.recurringRules) writeAdvanced(settings.copy(recurringRules = rules))
+            MutationResult.Success()
+        }
+    }
+
 
     // ═══════════════════════════ 读 ═══════════════════════════
 
-    override fun observeTransactions(filter: TransactionFilter): Flow<TransactionPageState> {
-        val range = filterEpochDayRange(filter)
+    override fun observeTransactions(filter: TransactionFilter): Flow<TransactionPageState> =
+        observeAdvancedSettings().map { it.monthStartDay }.distinctUntilChanged().flatMapLatest { day -> observeTransactionsForPeriod(filter, day) }
+
+    private fun observeTransactionsForPeriod(filter: TransactionFilter, day: Int): Flow<TransactionPageState> {
+        val range = filterEpochDayRange(filter, day)
         val pattern = searchPattern(filter.query)
         val type = filter.type
         val categoryId = filter.categoryId?.takeIf { it.isNotBlank() }
@@ -131,8 +206,11 @@ class LedgerRepositoryImpl(
             .distinctUntilChanged()
     }
 
-    override fun observeFilteredSummary(filter: TransactionFilter): Flow<MoneySummary> {
-        val range = filterEpochDayRange(filter)
+    override fun observeFilteredSummary(filter: TransactionFilter): Flow<MoneySummary> =
+        observeAdvancedSettings().map { it.monthStartDay }.distinctUntilChanged().flatMapLatest { day -> observeSummaryForPeriod(filter, day) }
+
+    private fun observeSummaryForPeriod(filter: TransactionFilter, day: Int): Flow<MoneySummary> {
+        val range = filterEpochDayRange(filter, day)
         return transactionDao.observeSummary(
             fromEpochDay = range.fromInclusive,
             toEpochDay = range.toInclusive,
@@ -147,50 +225,28 @@ class LedgerRepositoryImpl(
     override fun observeTransaction(id: String): Flow<LedgerTransaction?> =
         transactionDao.observeById(id).map { it?.toModel() }.distinctUntilChanged()
 
-    override fun observeMonthSummary(month: YearMonth): Flow<MoneySummary> {
-        val periodEnd = DateRanges.periodEnd(month, clock.today()) ?: return flowOf(MoneySummary.EMPTY)
-        return transactionDao.observeSummary(
-            fromEpochDay = DateRanges.monthStart(month).toEpochDay(),
-            toEpochDay = periodEnd.toEpochDay(),
-            type = null,
-            categoryId = null,
-            accountId = null,
-            pattern = "",
-        ).map { MoneySummary(it.incomeCent, it.expenseCent, it.totalCount) }
-            .distinctUntilChanged()
-    }
+    override fun observeMonthSummary(month: YearMonth): Flow<MoneySummary> =
+        observeFilteredSummary(TransactionFilter(yearMonth = month, to = clock.today()))
 
-    override fun observeMonthAnalysis(month: YearMonth, type: TransactionType): Flow<MonthAnalysis> {
-        val today = clock.today()
-        val periodEnd = DateRanges.periodEnd(month, today)
-            ?: return flowOf(MonthAnalysis(month = month, type = type, daily = emptyList(), periodEnd = null))
-        val start = DateRanges.monthStart(month)
-        return transactionDao.observeMonthRows(start.toEpochDay(), periodEnd.toEpochDay())
-            .map { rows -> buildMonthAnalysis(month, type, start, periodEnd, rows) }
-            .distinctUntilChanged()
-            .flowOn(Dispatchers.Default)
-    }
-
-    override fun observeYearAnalysis(year: Int): Flow<YearAnalysis> {
-        val today = clock.today()
-        if (year > today.year) {
-            return flowOf(
-                YearAnalysis(
-                    year = year,
-                    months = unreachedYearMonths(),
-                    cutoff = null,
-                    isCurrentYear = false,
-                    reachedMonthCount = 0,
-                ),
-            )
+    override fun observeMonthAnalysis(month: YearMonth, type: TransactionType): Flow<MonthAnalysis> =
+        observeAdvancedSettings().map { it.monthStartDay }.distinctUntilChanged().flatMapLatest { day ->
+            val period = LedgerPeriods.range(month, day)
+            val end = minOf(period.endInclusive, clock.today())
+            if (end < period.start) flowOf(MonthAnalysis(month = month, type = type, daily = emptyList(), periodEnd = null))
+            else transactionDao.observeMonthRows(period.start.toEpochDay(), end.toEpochDay()).map { rows ->
+                buildMonthAnalysis(month, type, period.start, end, rows)
+            }.flowOn(Dispatchers.Default)
         }
-        val range = DateRanges.yearEpochDayRange(year, today)
-            ?: return flowOf(YearAnalysis(year = year, months = unreachedYearMonths()))
-        return transactionDao.observeYearRows(range.first, range.last)
-            .map { rows -> buildYearAnalysis(year, today, rows) }
-            .distinctUntilChanged()
-            .flowOn(Dispatchers.Default)
-    }
+
+    override fun observeYearAnalysis(year: Int): Flow<YearAnalysis> =
+        observeAdvancedSettings().map { it.monthStartDay }.distinctUntilChanged().flatMapLatest { day ->
+            val today = clock.today()
+            val start = LedgerPeriods.start(YearMonth.of(year, 1), day)
+            val end = minOf(LedgerPeriods.start(YearMonth.of(year + 1, 1), day).minusDays(1), today)
+            if (end < start) flowOf(YearAnalysis(year = year, months = unreachedYearMonths()))
+            else transactionDao.observeYearRows(start.toEpochDay(), end.toEpochDay())
+                .map { rows -> buildYearAnalysis(year, today, rows, day) }.flowOn(Dispatchers.Default)
+        }
 
     override fun observeCategories(
         type: TransactionType,
@@ -207,12 +263,12 @@ class LedgerRepositoryImpl(
             .map { list -> list.map { it.toModel() } }
             .distinctUntilChanged()
 
-    override fun observeBudget(month: YearMonth): Flow<BudgetState> = budgetDao.observeState(
-        yearMonth = month.toString(),
-        fromEpochDay = DateRanges.monthStart(month).toEpochDay(),
-        toEpochDay = DateRanges.monthEnd(month).toEpochDay(),
-    ).map { BudgetState(yearMonth = month, budgetCent = it.budgetCent, usedCent = it.usedCent) }
-        .distinctUntilChanged()
+    override fun observeBudget(month: YearMonth): Flow<BudgetState> =
+        observeAdvancedSettings().map { it.monthStartDay }.distinctUntilChanged().flatMapLatest { day ->
+            val period = LedgerPeriods.range(month, day)
+            budgetDao.observeState(month.toString(), period.start.toEpochDay(), period.endInclusive.toEpochDay())
+                .map { BudgetState(yearMonth = month, budgetCent = it.budgetCent, usedCent = it.usedCent) }
+        }.distinctUntilChanged()
 
     override fun observeSettings(): Flow<LedgerSettings> =
         settingsDao.observe()
@@ -822,6 +878,8 @@ class LedgerRepositoryImpl(
             accounts = accountDao.listAll().map { it.toModel() },
             budgets = budgetDao.listAll().map { it.toModel() },
             settings = settings,
+            advanced = readAdvanced(),
+            recycleBin = transactionDao.getAll().filter { it.deletedAtEpochMillis != null }.map { it.toModel() },
         )
     }
 
@@ -844,8 +902,8 @@ class LedgerRepositoryImpl(
                 budgetDao.deleteAll()
                 settingsDao.deleteAll()
 
-                if (incoming.transactions.isNotEmpty()) {
-                    transactionDao.insertAll(incoming.transactions.map { it.toEntity() })
+                if (incoming.transactions.isNotEmpty() || incoming.recycleBin.isNotEmpty()) {
+                    transactionDao.insertAll((incoming.transactions + incoming.recycleBin).map { it.toEntity() })
                 }
                 if (incoming.categories.isNotEmpty()) {
                     categoryDao.insertAll(incoming.categories.map { it.toEntity(now) })
@@ -874,6 +932,8 @@ class LedgerRepositoryImpl(
                         updatedAtEpochMillis = now,
                     ),
                 )
+
+                writeAdvanced(incoming.advanced)
 
                 // 旧账本的删除凭据不得作用于新账本。
                 undoRegistry.clear()
@@ -967,13 +1027,14 @@ class LedgerRepositoryImpl(
         return null
     }
 
-    private fun filterEpochDayRange(filter: TransactionFilter): EpochDayBounds {
+    private fun filterEpochDayRange(filter: TransactionFilter, day: Int = 1): EpochDayBounds {
         var from = filter.from
         var to = filter.to
         val month = filter.yearMonth
         if (month != null) {
-            val start = DateRanges.monthStart(month)
-            val end = DateRanges.monthEnd(month)
+            val period = LedgerPeriods.range(month, day)
+            val start = period.start
+            val end = period.endInclusive
             from = if (from == null) start else maxOf(from, start)
             to = if (to == null) end else minOf(to, end)
         }
@@ -1056,7 +1117,8 @@ class LedgerRepositoryImpl(
         )
     }
 
-    private fun buildYearAnalysis(year: Int, today: LocalDate, rows: List<YearRow>): YearAnalysis {
+    private fun buildYearAnalysis(year: Int, today: LocalDate, rows: List<YearRow>, day: Int = 1): YearAnalysis {
+        val currentMonth = LedgerPeriods.monthOf(today, day)
         val incomeByMonth = LongArray(13)
         val expenseByMonth = LongArray(13)
         val countByMonth = IntArray(13)
@@ -1065,7 +1127,7 @@ class LedgerRepositoryImpl(
         var count = 0
 
         for (row in rows) {
-            val month = DateRanges.dateOf(row.occurredOnEpochDay).monthValue
+            val month = LedgerPeriods.monthOf(DateRanges.dateOf(row.occurredOnEpochDay), day).monthValue
             if (month !in 1..12) continue
             count += 1
             countByMonth[month] += 1
@@ -1083,7 +1145,7 @@ class LedgerRepositoryImpl(
                 month = month,
                 incomeCent = incomeByMonth[month],
                 expenseCent = expenseByMonth[month],
-                reached = DateRanges.isMonthReached(year, month, today),
+                reached = YearMonth.of(year, month) <= currentMonth,
                 hasRecords = countByMonth[month] > 0,
             )
         }
@@ -1093,9 +1155,9 @@ class LedgerRepositoryImpl(
             expenseCent = expenseCent,
             count = count,
             months = months,
-            cutoff = DateRanges.yearPeriodEnd(year, today),
-            isCurrentYear = year == today.year,
-            reachedMonthCount = DateRanges.reachedMonthCount(year, today),
+            cutoff = minOf(LedgerPeriods.start(YearMonth.of(year + 1, 1), day).minusDays(1), today),
+            isCurrentYear = year == currentMonth.year,
+            reachedMonthCount = if (year < currentMonth.year) 12 else if (year == currentMonth.year) currentMonth.monthValue else 0,
         )
     }
 

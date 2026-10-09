@@ -183,6 +183,12 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions ORDER BY occurredOnEpochDay ASC, createdAtEpochMillis ASC, id ASC")
     suspend fun getAll(): List<TransactionEntity>
 
+    @Query("SELECT * FROM transactions WHERE deletedAtEpochMillis IS NOT NULL ORDER BY deletedAtEpochMillis DESC, id ASC")
+    fun observeDeleted(): Flow<List<TransactionEntity>>
+
+    @Query("DELETE FROM transactions WHERE id = :id AND deletedAtEpochMillis IS NOT NULL")
+    suspend fun permanentlyDelete(id: String): Int
+
     @Query("SELECT COUNT(*) FROM transactions")
     suspend fun countAll(): Int
 

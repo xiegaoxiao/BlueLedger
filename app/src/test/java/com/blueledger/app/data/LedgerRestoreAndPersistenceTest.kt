@@ -501,9 +501,9 @@ class LedgerRestoreAndPersistenceTest : LedgerRoomTestBase() {
                 )
             }
             // 首版 schema：版本号固定 1，且没有任何破坏性迁移
-            assertEquals(2, LedgerDatabase.VERSION)
-            assertEquals(2, secondDb.openHelper.readableDatabase.version)
-            assertEquals(1, LedgerMigrations.ALL.size)
+            assertEquals(3, LedgerDatabase.VERSION)
+            assertEquals(LedgerDatabase.VERSION, secondDb.openHelper.readableDatabase.version)
+            assertEquals(2, LedgerMigrations.ALL.size)
         } finally {
             secondDb.close()
             context.deleteDatabase(name)

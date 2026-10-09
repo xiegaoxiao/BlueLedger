@@ -89,6 +89,7 @@ object ManagementTags {
     fun categoryArchive(id: String) = "btn_cat_archive_$id"
     fun categoryRestore(id: String) = "btn_cat_restore_$id"
     fun categoryIconOption(key: String) = "icon_option_$key"
+    fun categoryIconGroup(title: String) = "category_icon_group_$title"
 
     // ── S08 月度预算 ──
     const val BUDGET_SCREEN = "budget_screen"

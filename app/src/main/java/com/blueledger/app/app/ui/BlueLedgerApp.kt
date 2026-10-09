@@ -368,7 +368,12 @@ private fun BlueLedgerNavHost(
                 onCategories = { navController.navigate("${Routes.CATEGORIES}?type=${it.name}") },
                 onAccounts = { navController.navigate(Routes.ACCOUNTS) },
                 onData = { navController.navigate(Routes.DATA) },
-                onMigrate = { navController.navigate("migrate") })
+                onMigrate = { navController.navigate("migrate") },
+                onAdvanced = { navController.navigate("advanced") })
+        }
+        composable("advanced") {
+            com.blueledger.app.feature.advanced.AdvancedFeaturesRoute(container.ledgerRepository, container.clock,
+                onBack = { navController.popBackStack() }, onDetail = { navController.navigate(Routes.detail(it)) })
         }
         composable("migrate") {
             ReferenceMigrateRoute(container.ledgerRepository, onBack = { navController.popBackStack() })
@@ -460,8 +465,8 @@ private fun BlueLedgerBottomBar(
     modifier: Modifier = Modifier,
 ) {
     val largeFont = androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.4f
-    val baseHeight = if (largeFont) 76.dp else 64.dp
-    Box(modifier.fillMaxWidth().navigationBarsPadding().height(baseHeight + if (largeFont) 28.dp else 24.dp)) {
+    val baseHeight = if (largeFont) 76.dp else BlueLedgerTokens.ReferenceBottomBarHeight
+    Box(modifier.fillMaxWidth().navigationBarsPadding().height(baseHeight + BlueLedgerTokens.ReferenceRecordOverlap)) {
         Surface(Modifier.fillMaxWidth().height(baseHeight).align(Alignment.BottomCenter),
             color = BlueLedgerTokens.Surface, shadowElevation = BlueLedgerTokens.CardElevation) {}
         Row(
@@ -484,12 +489,16 @@ private fun BlueLedgerBottomBar(
                 }
             }
         }
-        Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 5.dp)
+        Column(Modifier.align(Alignment.BottomCenter)
             .testTag(TAG_RECORD_BUTTON).clickable(role = Role.Button, onClickLabel = "记一笔", onClick = onRecord),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Box(Modifier.size(56.dp).clip(CircleShape).background(BlueLedgerTokens.Primary),
-                contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.Add, null, tint = BlueLedgerTokens.Surface, modifier = Modifier.size(30.dp))
+            Surface(Modifier.size(BlueLedgerTokens.ReferenceRecordOuter), shape = CircleShape,
+                color = BlueLedgerTokens.Surface, shadowElevation = BlueLedgerTokens.CardElevation) {
+                Box(contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(BlueLedgerTokens.ReferenceRecordInner).clip(CircleShape).background(BlueLedgerTokens.Primary), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Filled.Add, null, tint = BlueLedgerTokens.Surface, modifier = Modifier.size(BlueLedgerTokens.IconMedium))
+                    }
+                }
             }
             Text("记账", fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, color = BlueLedgerTokens.TextSecondary)
         }

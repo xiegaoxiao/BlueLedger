@@ -45,6 +45,7 @@ fun LedgerTopBar(
     onBack: (() -> Unit)? = null,
     backContentDescription: String = "返回",
     showDivider: Boolean = false,
+    contentColor: Color = BlueLedgerTokens.TextPrimary,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
@@ -65,7 +66,7 @@ fun LedgerTopBar(
                     Icon(
                         imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
                         contentDescription = backContentDescription,
-                        tint = BlueLedgerTokens.TextPrimary,
+                        tint = contentColor,
                         modifier = Modifier.size(LedgerComponentSizes.iconMedium),
                     )
                 }
@@ -76,7 +77,7 @@ fun LedgerTopBar(
             Text(
                 text = title,
                 style = LedgerTextStyles.pageTitle,
-                color = BlueLedgerTokens.TextPrimary,
+                color = contentColor,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier

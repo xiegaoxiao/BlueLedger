@@ -72,7 +72,9 @@ class RepeatedTabNavigationTest {
                 assertEquals("每个前台页面只有一组汇总查询", 1, repository.count("filteredSummary"))
                 assertEquals("设置查询保持唯一", 1, repository.count("settings"))
             }
-            composeRule.onNodeWithTag(TAG_OVERVIEW_MONTH_LABEL).assertTextContains("09月", substring = true)
+            // 首页月份标签由「2026年 / 09 / 月」三段文本组成，按段断言选中的月份。
+            composeRule.onNodeWithTag(TAG_OVERVIEW_MONTH_LABEL).assertTextContains("09", substring = true)
+            composeRule.onNodeWithTag(TAG_OVERVIEW_MONTH_LABEL).assertTextContains("月", substring = true)
         }
     }
 
@@ -128,7 +130,7 @@ class RepeatedTabNavigationTest {
         composeRule.waitForIdle()
         assertEquals("后台写入不能唤醒已暂停的统计订阅", 0, repository.count("monthAnalysis"))
         composeRule.onNodeWithTag("tab_statistics").performClick()
-        composeRule.onNodeWithTag(StatisticsTags.SUMMARY_CARD).assertTextContains("12.50", substring = true)
+        composeRule.onNodeWithTag(StatisticsTags.SUMMARY_CARD).assertTextContains("总支出：12.5", substring = true)
         assertEquals(1, repository.count("transactions"))
     }
 

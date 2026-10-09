@@ -1,5 +1,7 @@
 package com.blueledger.app.feature.backup
 
+import com.blueledger.app.core.model.validationError
+import com.blueledger.app.core.contract.BackupDeletedTransactionDto
 import com.blueledger.app.core.contract.BackupAccountDto
 import com.blueledger.app.core.contract.BackupBudgetDto
 import com.blueledger.app.core.contract.BackupCategoryDto
@@ -79,7 +81,7 @@ class JsonBackupCodec(private val clock: Clock) : LedgerBackupCodec {
             schemaVersion = BackupLimits.BACKUP_SCHEMA_VERSION,
             exportedAt = IsoTimestamp.format(snapshot.exportedAt),
             currency = snapshot.currency.ifBlank { LedgerSettings.CURRENCY_CNY },
-            // 软删除账单不进入正式备份（契约：deletedAt != null 不属于有效账单集合）。
+            // 软删除账单不进入有效账单集合，版本 3 在独立 recycleBin 中保存。
             // A1 的一致快照已经过滤过，这里再挡一次，防止调用方直接传原始快照。
             transactions = snapshot.transactions
                 .filter { it.deletedAt == null }
@@ -125,6 +127,11 @@ class JsonBackupCodec(private val clock: Clock) : LedgerBackupCodec {
                 .map { BackupBudgetDto(yearMonth = it.yearMonth.toString(), amountCent = it.amountCent) },
             // settings 里**不含** lastBackupAt / lastBackupFileName（DTO 也没有这两个字段）：
             // 恢复后保留设备当前的“最近成功备份时间”，不能把文件里的旧时间当成刚备份成功。
+            advanced = snapshot.advanced,
+            recycleBin = snapshot.recycleBin.map { t -> BackupDeletedTransactionDto(
+                BackupTransactionDto(t.id, t.type.name, t.amountCent, t.categoryId, t.accountId, t.occurredOn.toString(), t.note, IsoTimestamp.format(t.createdAt), IsoTimestamp.format(t.updatedAt)),
+                IsoTimestamp.format(requireNotNull(t.deletedAt)),
+            ) },
             settings = BackupSettingsDto(
                 defaultAccountId = snapshot.settings.defaultAccountId,
                 lastUsedAccountId = snapshot.settings.lastUsedAccountId,
@@ -232,6 +239,13 @@ class JsonBackupCodec(private val clock: Clock) : LedgerBackupCodec {
         //    只靠反序列化无法拒绝 "amountCent": "2850" 这类类型错误，必须显式核对 ──
         try {
             verifyPrimitiveTypes(root)
+            if (version >= 3 && (root["advanced"] !is JsonObject || root["recycleBin"] !is JsonArray)) fail(ValidationCode.BACKUP_FIELD_TYPE_INVALID, "v3 备份缺少高级设置或回收站")
+            (root["recycleBin"] as? JsonArray)?.forEach { value ->
+                val item = value as? JsonObject ?: fail(ValidationCode.BACKUP_FIELD_TYPE_INVALID, "回收站格式不合法")
+                checkObjectTypes(item, mapOf("deletedAt" to FieldKind.STRING), "recycleBin")
+                checkObjectTypes(item["transaction"] as? JsonObject ?: fail(ValidationCode.BACKUP_FIELD_TYPE_INVALID, "回收站缺少账单"), TRANSACTION_FIELD_KINDS, "recycleBin.transaction")
+            }
+            (root["advanced"] as? JsonObject)?.let { verifyAdvancedTypes(it) }
         } catch (rejection: Rejection) {
             return BackupDecodeResult.Invalid(rejection.error)
         }
@@ -255,7 +269,16 @@ class JsonBackupCodec(private val clock: Clock) : LedgerBackupCodec {
 
         // ── 业务校验：任何一条失败都不产生 ValidatedLedgerSnapshot ──
         return try {
-            val snapshot = verify(envelope, exportedAt, currency)
+            var snapshot = verify(envelope, exportedAt, currency)
+            if (envelope.transactions.size + envelope.recycleBin.size > BackupLimits.MAX_TRANSACTIONS) fail(ValidationCode.BACKUP_TOO_MANY_ENTRIES, "有效账单与回收站合计超过上限")
+            val all = verify(envelope.copy(transactions = envelope.transactions + envelope.recycleBin.map { it.transaction }), exportedAt, currency)
+            val deleted = all.transactions.drop(envelope.transactions.size).zip(envelope.recycleBin).map { (transaction, dto) ->
+                val at = IsoTimestamp.parseOrNull(dto.deletedAt) ?: fail(ValidationCode.BACKUP_DATE_INVALID, "回收站删除时间不合法")
+                // 与创建/更新时间一样，保留实际墙钟值，兼容设备时间回拨。
+                transaction.copy(deletedAt = at)
+            }
+            envelope.advanced.validationError(all.categories, all.accounts, all.transactions.map { it.id }.toSet())?.let { fail(ValidationCode.BACKUP_FIELD_TYPE_INVALID, it) }
+            snapshot = snapshot.copy(advanced = envelope.advanced, recycleBin = deleted)
             BackupDecodeResult.Valid(
                 validated = ValidatedLedgerSnapshot.fromVerified(snapshot),
                 summary = summarize(envelope, exportedAt, currency, snapshot),
@@ -308,6 +331,26 @@ class JsonBackupCodec(private val clock: Clock) : LedgerBackupCodec {
             if (!matchesKind) {
                 fail(ValidationCode.BACKUP_FIELD_TYPE_INVALID, "$where.$field 字段类型不正确（需要${kind.label}）")
             }
+        }
+    }
+
+    private fun verifyAdvancedTypes(value: JsonObject) {
+        checkObjectTypes(value, mapOf("monthStartDay" to FieldKind.NUMBER), "advanced")
+        for (name in listOf("tags", "categoryBudgets", "recurringRules")) {
+            (value[name] as? JsonArray)?.forEach { item ->
+                val entry = item as? JsonObject ?: fail(ValidationCode.BACKUP_FIELD_TYPE_INVALID, "高级设置条目不是对象")
+                checkObjectTypes(entry, mapOf(
+                    "id" to FieldKind.STRING, "name" to FieldKind.STRING, "type" to FieldKind.STRING,
+                    "categoryId" to FieldKind.STRING, "accountId" to FieldKind.STRING, "note" to FieldKind.STRING,
+                    "startDate" to FieldKind.STRING, "nextDate" to FieldKind.STRING, "frequency" to FieldKind.STRING,
+                    "lastError" to FieldKind.STRING, "amountCent" to FieldKind.NUMBER, "interval" to FieldKind.NUMBER,
+                    "enabled" to FieldKind.BOOLEAN,
+                ), "advanced.$name")
+            }
+        }
+        (value["transactionTags"] as? JsonObject)?.values?.forEach { element ->
+            val ids = element as? JsonArray ?: fail(ValidationCode.BACKUP_FIELD_TYPE_INVALID, "账单标签不是数组")
+            if (ids.any { it !is JsonPrimitive || !it.isString }) fail(ValidationCode.BACKUP_FIELD_TYPE_INVALID, "标签 ID 不是字符串")
         }
     }
 

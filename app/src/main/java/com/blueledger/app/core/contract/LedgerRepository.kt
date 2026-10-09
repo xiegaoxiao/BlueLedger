@@ -60,6 +60,13 @@ interface Clock {
  * 5. 分页只影响 [observeTransactions] 的 items；[observeFilteredSummary] 忽略分页。
  */
 interface LedgerRepository {
+    fun observeAdvancedSettings(): Flow<com.blueledger.app.core.model.AdvancedLedgerSettings> = kotlinx.coroutines.flow.flowOf(com.blueledger.app.core.model.AdvancedLedgerSettings())
+    suspend fun updateAdvancedSettings(change: (com.blueledger.app.core.model.AdvancedLedgerSettings) -> com.blueledger.app.core.model.AdvancedLedgerSettings): MutationResult = MutationResult.Failure(com.blueledger.app.core.model.LedgerError.Storage("此账本暂不支持高级设置"))
+    fun observeRecycleBin(): Flow<List<LedgerTransaction>> = kotlinx.coroutines.flow.flowOf(emptyList())
+    suspend fun restoreFromRecycleBin(id: String): MutationResult = MutationResult.Failure(com.blueledger.app.core.model.LedgerError.Storage("此账本暂不支持回收站"))
+    suspend fun permanentlyDeleteTransaction(id: String): MutationResult = MutationResult.Failure(com.blueledger.app.core.model.LedgerError.Storage("此账本暂不支持永久删除"))
+    suspend fun processRecurringTransactions(): MutationResult = MutationResult.Success()
+
 
     // ───────────────────────── 读 ─────────────────────────
 
@@ -164,7 +171,7 @@ interface LedgerRepository {
 
     // ───────────────────────── 备份与恢复 ─────────────────────────
 
-    /** 在一致的读快照中导出全部实体（含归档分类/账户，不含软删除账单）。 */
+    /** 一致快照包含全部配置、有效账单及独立回收站，保留归档分类/账户。 */
     suspend fun exportConsistentSnapshot(): LedgerSnapshot
 
     /**

@@ -26,6 +26,11 @@ object BlueLedgerTokens {
     val PrimarySoft = Color(0xFFEFF5FF)
     val Background = Color(0xFFF6F8FC)
     val Surface = Color(0xFFFFFFFF)
+    /** 饱和品牌色块上的文字、控件和装饰，统一从白色表面派生。 */
+    val OnBrand = Surface
+    val OnBrandSecondary = OnBrand.copy(alpha = .75f)
+    val OnBrandSubtle = OnBrand.copy(alpha = .12f)
+    val OnBrandOutline = OnBrand.copy(alpha = .6f)
     val TextPrimary = Color(0xFF142542)
     val TextSecondary = Color(0xFF62738D)
     val Border = Color(0xFFE2EAF4)
@@ -85,6 +90,32 @@ object BlueLedgerTokens {
     /** 卡片阴影：轻微、柔和，不用重阴影。 */
     val CardElevation: Dp = 1.dp
     val CardElevationRaised: Dp = 3.dp
+
+    // 参考页面品牌头部与图标尺寸。
+    val BrandShortcutOverlap: Dp = 20.dp
+    val ShortcutIconContainer: Dp = 32.dp
+    val ProfileAvatar: Dp = 54.dp
+    val IconMedium: Dp = 24.dp
+    val IconSmall: Dp = 20.dp
+    val MenuRowMinHeight: Dp = 56.dp
+    val SegmentHeight: Dp = 28.dp
+    val RadiusSegment: Dp = 3.dp
+    /** 按参考图 1240px 宽归一到 354dp，排除系统栏后校准的结构尺寸。 */
+    val BrandTitleHeight: Dp = 44.dp
+    val ReferenceEntryTitleHeight: Dp = 48.dp
+    val ReferencePeriodHeight: Dp = 36.dp
+    val ReferenceChartHeight: Dp = 108.dp
+    const val ReferenceCategoryInsetFraction: Float = .071f
+    val ProfileCheckHeight: Dp = 32.dp
+    val ProfileCheckIcon: Dp = 18.dp
+    val ProfileCount: TextUnit = 24.sp
+    val ReferenceListIcon: Dp = 34.dp
+    val ReferenceRankingVertical: Dp = 10.dp
+    val ReferenceBillToolbarHeight: Dp = 50.dp
+    val ReferenceBottomBarHeight: Dp = 50.dp
+    val ReferenceRecordOverlap: Dp = 30.dp
+    val ReferenceRecordOuter: Dp = 60.dp
+    val ReferenceRecordInner: Dp = 48.dp
 }
 
 private val BlueLedgerLightColorScheme = lightColorScheme(

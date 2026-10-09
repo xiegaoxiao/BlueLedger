@@ -16,8 +16,8 @@ android {
         applicationId = "com.blueledger.app"
         minSdk = 26
         targetSdk = 37
-        versionCode = 5
-        versionName = "1.1.3"
+        versionCode = 7
+        versionName = "1.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Room schema 导出目录由 KSP 参数指向，提交进版本库以便做迁移测试。

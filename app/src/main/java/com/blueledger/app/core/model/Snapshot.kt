@@ -10,9 +10,10 @@ import java.time.Instant
  * - 全部**有效**账单（deletedAt == null）
  * - **全部**分类与账户，包括没有任何有效账单引用的归档项
  *   （用户的分类/账户配置本身就是需要保留的数据，不能只导出被引用到的实体）
- * - 全部月预算与设置
+ * - 全部月预算、设置、标签、分类预算与自动记账规则
+ * - 回收站中的软删除账单，单独保存，恢复后不会计入收支
  *
- * 不包含：页面草稿、软删除账单。
+ * 不包含：页面草稿。
  */
 data class LedgerSnapshot(
     val exportedAt: Instant,
@@ -22,6 +23,8 @@ data class LedgerSnapshot(
     val accounts: List<LedgerAccount>,
     val budgets: List<MonthlyBudget>,
     val settings: LedgerSettings,
+    val advanced: AdvancedLedgerSettings = AdvancedLedgerSettings(),
+    val recycleBin: List<LedgerTransaction> = emptyList(),
 )
 
 /**

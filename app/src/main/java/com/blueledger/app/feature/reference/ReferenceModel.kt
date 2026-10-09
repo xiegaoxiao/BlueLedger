@@ -13,25 +13,25 @@ import java.time.temporal.TemporalAdjusters
 
 enum class ChartPeriod { WEEK, MONTH, YEAR }
 
-data class ChartRange(val from: LocalDate, val to: LocalDate, val period: ChartPeriod) {
+data class ChartRange(val from: LocalDate, val to: LocalDate, val period: ChartPeriod, val monthStartDay: Int = 1) {
     fun previous(): ChartRange = shifted(-1)
     fun next(): ChartRange = shifted(1)
     private fun shifted(delta: Long): ChartRange = when (period) {
         ChartPeriod.WEEK -> copy(from = from.plusWeeks(delta), to = to.plusWeeks(delta))
-        ChartPeriod.MONTH -> month(YearMonth.from(from).plusMonths(delta))
-        ChartPeriod.YEAR -> year(from.year + delta.toInt())
+        ChartPeriod.MONTH -> month(YearMonth.from(from).plusMonths(delta), monthStartDay)
+        ChartPeriod.YEAR -> year(from.year + delta.toInt(), monthStartDay)
     }
     companion object {
         fun week(day: LocalDate): ChartRange {
             val monday = day.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
             return ChartRange(monday, monday.plusDays(6), ChartPeriod.WEEK)
         }
-        fun month(month: YearMonth) = ChartRange(month.atDay(1), month.atEndOfMonth(), ChartPeriod.MONTH)
-        fun year(year: Int) = ChartRange(LocalDate.of(year, 1, 1), LocalDate.of(year, 12, 31), ChartPeriod.YEAR)
-        fun forPeriod(period: ChartPeriod, today: LocalDate) = when (period) {
+        fun month(month: YearMonth, day: Int = 1) = LedgerPeriods.range(month, day).let { ChartRange(it.start, it.endInclusive, ChartPeriod.MONTH, day) }
+        fun year(year: Int, day: Int = 1) = ChartRange(LedgerPeriods.start(YearMonth.of(year, 1), day), LedgerPeriods.start(YearMonth.of(year + 1, 1), day).minusDays(1), ChartPeriod.YEAR, day)
+        fun forPeriod(period: ChartPeriod, today: LocalDate, day: Int = 1) = when (period) {
             ChartPeriod.WEEK -> week(today)
-            ChartPeriod.MONTH -> month(YearMonth.from(today))
-            ChartPeriod.YEAR -> year(today.year)
+            ChartPeriod.MONTH -> month(LedgerPeriods.monthOf(today, day), day)
+            ChartPeriod.YEAR -> year(LedgerPeriods.monthOf(today, day).year, day)
         }
     }
 }
@@ -61,8 +61,8 @@ data class ReferenceLedgerState(
 class ReferenceLedgerViewModel(repository: LedgerRepository, initialFilter: TransactionFilter) : ViewModel() {
     private val filter = MutableStateFlow(initialFilter)
     val state = filter.flatMapLatest { query ->
-        combine(repository.observeTransactions(query), repository.observeFilteredSummary(query)) { page, summary ->
-            buildReferenceState(query, page, summary)
+        combine(repository.observeTransactions(query), repository.observeFilteredSummary(query), repository.observeAdvancedSettings()) { page, summary, settings ->
+            buildReferenceState(query, page, summary, settings.monthStartDay)
         }.flowOn(Dispatchers.Default)
             .catch { emit(ReferenceLedgerState(query, loaded = true, error = "读取失败，请重试")) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(0), ReferenceLedgerState(initialFilter))
@@ -71,7 +71,7 @@ class ReferenceLedgerViewModel(repository: LedgerRepository, initialFilter: Tran
     fun retry() { filter.update { it.copy(limit = it.limit + 1) } }
 }
 
-internal fun buildReferenceState(filter: TransactionFilter, page: TransactionPageState, summary: MoneySummary): ReferenceLedgerState {
+internal fun buildReferenceState(filter: TransactionFilter, page: TransactionPageState, summary: MoneySummary, monthStartDay: Int = 1): ReferenceLedgerState {
     val rows = page.items
     val categoryTotal = rows.sumOf { it.amountCent }
     return ReferenceLedgerState(
@@ -88,7 +88,7 @@ internal fun buildReferenceState(filter: TransactionFilter, page: TransactionPag
         }.sortedWith(compareByDescending<ReferenceCategory> { it.cent }.thenBy { it.id }),
         expenseCategories = referenceCategories(rows.filter { it.type.isExpense }),
         expenseRanking = rows.filter { it.type.isExpense }.sortedByDescending { it.amountCent }.take(10),
-        months = rows.groupBy { YearMonth.from(it.occurredOn) }.map { (month, group) ->
+        months = rows.groupBy { LedgerPeriods.monthOf(it.occurredOn, monthStartDay) }.map { (month, group) ->
             ReferenceMonth(month, group.filter { it.type.isIncome }.sumOf { it.amountCent }, group.filter { it.type.isExpense }.sumOf { it.amountCent })
         }.sortedByDescending { it.month },
     )

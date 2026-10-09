@@ -3,20 +3,25 @@ package com.blueledger.app.feature.reference
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -32,28 +37,55 @@ import java.time.YearMonth
 import kotlin.math.roundToInt
 
 @Composable
-internal fun ReferenceTitle(title: String, onBack: (() -> Unit)? = null, blue: Boolean = false, action: @Composable () -> Unit = {}) {
-    Box(Modifier.fillMaxWidth().heightIn(min = 52.dp).background(if (blue) T.PrimarySoft else T.Surface)) {
-        Text(title, fontSize = 19.sp, color = T.TextPrimary, modifier = Modifier.align(Alignment.Center))
+internal fun ReferenceTitle(title: String, onBack: (() -> Unit)? = null, blue: Boolean = false, brand: Boolean = false, action: @Composable () -> Unit = {}) {
+    val contentColor = if (brand) T.OnBrand else T.TextPrimary
+    Box(Modifier.fillMaxWidth().heightIn(min = if (brand) T.BrandTitleHeight else 52.dp).background(if (brand) T.Primary else if (blue) T.PrimarySoft else T.Surface)) {
+        Text(title, fontSize = 19.sp, color = contentColor, modifier = Modifier.align(Alignment.Center))
         if (onBack != null) IconButton(onClick = onBack, modifier = Modifier.align(Alignment.CenterStart).testTag("btn_back")) {
-            Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回", tint = T.TextPrimary)
+            Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回", tint = contentColor)
         }
         Box(Modifier.align(Alignment.CenterEnd)) { action() }
     }
 }
 
 @Composable
-internal fun <V> ReferenceTabs(options: List<V>, selected: V, label: (V) -> String, onSelect: (V) -> Unit, tag: (V) -> String = { "" }) {
+internal fun <V> ReferenceTabs(options: List<V>, selected: V, label: (V) -> String, onSelect: (V) -> Unit, tag: (V) -> String = { "" }, onBrand: Boolean = false) {
     Row(Modifier.fillMaxWidth()) {
         options.forEach { value ->
             Column(Modifier.weight(1f).clickable { onSelect(value) }.testTag(tag(value)), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(label(value), fontSize = 16.sp, color = T.TextPrimary, fontWeight = if (value == selected) FontWeight.Medium else FontWeight.Normal,
+                Text(label(value), fontSize = 16.sp, color = if (onBrand) T.OnBrand else T.TextPrimary, fontWeight = if (value == selected) FontWeight.Medium else FontWeight.Normal,
                     modifier = Modifier.padding(vertical = 12.dp))
-                Box(Modifier.width(40.dp).height(2.dp).background(if (value == selected) T.TextPrimary else Color.Transparent))
+                Box(Modifier.width(40.dp).height(2.dp).background(if (value != selected) Color.Transparent else if (onBrand) T.OnBrand else T.TextPrimary))
             }
         }
     }
 }
+
+/** 图表页品牌头部的反色分段框：白底蓝字选中段，半透明白底与白字未选中段。 */
+@Composable
+internal fun <V> ReferenceSegmentedControl(options: List<V>, selected: V, label: (V) -> String, onSelect: (V) -> Unit, tag: (V) -> String = { "" }) {
+    val shape = RoundedCornerShape(T.RadiusSegment)
+    Row(Modifier.fillMaxWidth().height(T.SegmentHeight).clip(shape).border(1.dp, T.OnBrandOutline, shape)) {
+        options.forEach { value ->
+            Box(
+                Modifier.weight(1f).fillMaxHeight()
+                    .background(if (value == selected) T.Surface else T.OnBrandSubtle)
+                    .selectable(value == selected, role = Role.Tab, onClick = { onSelect(value) })
+                    .testTag(tag(value)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(label(value), fontSize = T.Body, color = if (value == selected) T.Primary else T.OnBrand)
+            }
+        }
+    }
+}
+
+/**
+ * 与参考应用一致的金额写法：整数分 → 去千分位、去掉多余小数零（`1250` → `12.5`，`2600` → `26`）。
+ * 只用于展示，不参与任何计算或写入。
+ */
+internal fun referenceAmountText(cent: Long): String =
+    Money.format(cent).replace(",", "").trimEnd('0').trimEnd('.')
 
 @Composable
 internal fun ReferenceMoney(cent: Long, modifier: Modifier = Modifier, large: Boolean = false, prefix: String = "") {
@@ -63,19 +95,22 @@ internal fun ReferenceMoney(cent: Long, modifier: Modifier = Modifier, large: Bo
 
 /** A drawn triangle keeps date selectors independent of the font's chevron glyph. */
 @Composable
-internal fun ReferenceDropdownArrow(modifier: Modifier = Modifier) {
+internal fun ReferenceDropdownArrow(modifier: Modifier = Modifier, color: Color = T.TextPrimary) {
     Canvas(modifier.size(width = 11.dp, height = 7.dp)) {
         drawPath(Path().apply {
             moveTo(0f, 0f); lineTo(size.width, 0f); lineTo(size.width / 2f, size.height); close()
-        }, T.TextPrimary)
+        }, color)
     }
 }
 
 @Composable
-internal fun ReferenceRow(title: String, value: String = "", tag: String = "", onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).background(T.Surface).clickable(onClick = onClick)
+internal fun ReferenceRow(title: String, value: String = "", tag: String = "", subtitle: String = "", enabled: Boolean = true, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).background(T.Surface).clickable(enabled = enabled, onClick = onClick)
         .testTag(tag).padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, fontSize = 16.sp, color = T.TextPrimary, modifier = Modifier.weight(1f))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 16.sp, color = if (enabled) T.TextPrimary else T.TextSecondary)
+            if (subtitle.isNotEmpty()) Text(subtitle, fontSize = 12.sp, color = T.TextSecondary, modifier = Modifier.padding(top = 4.dp))
+        }
         Text(value, fontSize = 14.sp, color = T.TextSecondary)
         Text("›", color = T.TextSecondary, fontSize = 24.sp, modifier = Modifier.padding(start = 12.dp))
     }
@@ -106,27 +141,38 @@ internal fun ReferenceLineChart(values: List<Long>, labels: List<String>, modifi
     val hidden = LocalHideAmounts.current
     val color = T.Primary
     val border = T.Border
+    val secondary = T.TextSecondary
     val max = maxOf(1L, values.maxOrNull() ?: 0L)
     val min = minOf(0L, values.minOrNull() ?: 0L)
+    val axisLabels = remember(labels) {
+        if (labels.size <= 7) labels.indices.toList()
+        else {
+            val step = (labels.size - 1) / 5f
+            (0..5).map { (it * step).roundToInt() }.distinct().filter { it <= labels.lastIndex }
+        }
+    }
     Column(modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(if (hidden) "••••" else Money.format(max), fontSize = 12.sp, color = T.TextSecondary)
-            Text(if (selected in values.indices) labels.getOrElse(selected) { "" } + "  " + if (hidden) "••••" else Money.format(values[selected]) else "", fontSize = 12.sp, color = T.TextSecondary)
+            Text(if (selected in values.indices) labels.getOrElse(selected) { "" } + "  " + if (hidden) "••••" else referenceAmountText(values[selected]) else "",
+                fontSize = 12.sp, color = secondary)
+            Text(if (hidden) "••••" else referenceAmountText(max), fontSize = 12.sp, color = secondary)
         }
-        Canvas(Modifier.fillMaxWidth().height(180.dp).testTag("reference_line_chart")
+        Canvas(Modifier.fillMaxWidth().height(T.ReferenceChartHeight).testTag("reference_line_chart")
             .semantics { contentDescription = "收支趋势，${values.size} 个时间点" }
             .pointerInput(values) { detectTapGestures { point ->
                 if (values.isNotEmpty()) selected = ((point.x / size.width) * (values.size - 1)).roundToInt().coerceIn(values.indices)
             } }) {
             val bottom = size.height - 12.dp.toPx()
             val top = 14.dp.toPx()
-            repeat(4) { row ->
-                val y = top + (bottom - top) * row / 3f
-                drawLine(border, Offset(0f, y), Offset(size.width, y), .5.dp.toPx())
-            }
+            fun yOf(value: Double) = bottom - (((value - min) / (max - min)) * (bottom - top)).toFloat()
+            drawLine(border, Offset(0f, top), Offset(size.width, top), .5.dp.toPx())
+            drawLine(border, Offset(0f, bottom), Offset(size.width, bottom), .5.dp.toPx())
             if (values.isNotEmpty()) {
+                val average = values.average()
+                drawLine(secondary.copy(alpha = .6f), Offset(0f, yOf(average)), Offset(size.width, yOf(average)), .8.dp.toPx(),
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(9f, 11f)))
                 val points = values.mapIndexed { i, value ->
-                    Offset(if (values.size == 1) size.width / 2 else size.width * i / (values.size - 1), bottom - (((value - min).toDouble() / (max - min)) * (bottom - top)).toFloat())
+                    Offset(if (values.size == 1) size.width / 2 else size.width * i / (values.size - 1), yOf(value.toDouble()))
                 }
                 val path = Path().apply { points.forEachIndexed { i, p -> if (i == 0) moveTo(p.x, p.y) else lineTo(p.x, p.y) } }
                 drawPath(path, color, style = Stroke(1.5.dp.toPx()))
@@ -137,9 +183,7 @@ internal fun ReferenceLineChart(values: List<Long>, labels: List<String>, modifi
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            listOf(0, labels.size / 2, labels.lastIndex).distinct().filter { it >= 0 }.forEach { i ->
-                Text(labels.getOrElse(i) { "" }, color = T.TextSecondary, fontSize = 12.sp)
-            }
+            axisLabels.forEach { i -> Text(labels.getOrElse(i) { "" }, color = secondary, fontSize = 12.sp) }
         }
     }
 }

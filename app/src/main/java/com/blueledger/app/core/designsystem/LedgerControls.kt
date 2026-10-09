@@ -16,8 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -282,7 +280,7 @@ fun LedgerCategoryIcon(
 
 /**
  * 分类项：图标 + 名称，整项触控区 ≥48dp。
- * 选中态同时使用实心圆底、蓝色边框、勾选角标与加粗文字，不只依赖色深。
+ * 选中态使用蓝色实心圆底、白图标与蓝色名称；无障碍状态由 stateDescription 提供。
  */
 @Composable
 fun LedgerCategoryCell(
@@ -293,6 +291,7 @@ fun LedgerCategoryCell(
     modifier: Modifier = Modifier,
     archived: Boolean = false,
     testTag: String? = null,
+    verticalPadding: Dp = BlueLedgerTokens.SpaceS,
 ) {
     val cellShape = RoundedCornerShape(BlueLedgerTokens.RadiusInput)
     Column(
@@ -301,7 +300,7 @@ fun LedgerCategoryCell(
             .clip(cellShape)
             .then(if (testTag != null) Modifier.testTag(testTag) else Modifier)
             .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
-            .padding(vertical = BlueLedgerTokens.SpaceS, horizontal = BlueLedgerTokens.SpaceXs)
+            .padding(vertical = verticalPadding, horizontal = BlueLedgerTokens.SpaceXs)
             .semantics {
                 stateDescription = when {
                     archived -> "已归档"
@@ -312,27 +311,7 @@ fun LedgerCategoryCell(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(BlueLedgerTokens.SpaceXs),
     ) {
-        Box {
-            LedgerCategoryIcon(iconKey = iconKey, selected = selected, archived = archived, diameter = 50.dp)
-            if (selected) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .size(16.dp)
-                        .clip(CircleShape)
-                        .background(BlueLedgerTokens.Primary)
-                        .border(1.5.dp, BlueLedgerTokens.Surface, CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Check,
-                        contentDescription = null,
-                        tint = BlueLedgerTokens.Surface,
-                        modifier = Modifier.size(11.dp),
-                    )
-                }
-            }
-        }
+        LedgerCategoryIcon(iconKey = iconKey, selected = selected, archived = archived, diameter = 50.dp)
         Text(
             text = name,
             style = LedgerTextStyles.categoryLabel,

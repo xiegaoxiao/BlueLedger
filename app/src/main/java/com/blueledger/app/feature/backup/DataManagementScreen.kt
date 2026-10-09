@@ -300,7 +300,7 @@ fun DataManagementScreen(
 
             is DataManagementDialog.RestoreConfirm -> LedgerConfirmDialog(
                 title = "覆盖恢复？",
-                message = "恢复后会替换当前本地账单、分类、账户、预算及设置。确认前不会修改任何数据。",
+                message = "恢复后会替换当前账单、回收站、分类、账户、预算、标签、周期规则及设置。旧版备份没有的高级设置会重置。确认前不会修改任何数据。",
                 confirmText = "确认恢复",
                 dismissText = "取消",
                 destructive = true,
@@ -520,7 +520,7 @@ private fun TipsCard() {
         LedgerSectionHeader(title = "备份小提示")
         Text(
             text = "· 完整备份是本地 .blueledger.json 文件，包含全部有效账单、分类、账户、预算与设置；" +
-                "软删除的账单不导出。",
+                "回收站记录和高级功能配置也进入完整备份。",
             style = LedgerTextStyles.caption,
             color = BlueLedgerTokens.TextSecondary,
         )

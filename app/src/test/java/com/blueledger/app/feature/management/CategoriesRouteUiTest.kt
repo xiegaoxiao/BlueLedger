@@ -2,15 +2,20 @@ package com.blueledger.app.feature.management
 
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.blueledger.app.core.model.CategoryIcons
 import com.blueledger.app.core.model.TransactionType
@@ -166,5 +171,51 @@ class CategoriesRouteUiTest {
         composeRule.onNodeWithTag(ManagementTags.CATEGORIES_EDITOR_DIALOG).assertIsDisplayed()
         composeRule.onNodeWithText("收支类型：支出（建立后不可更改）").assertIsDisplayed()
         composeRule.onAllNodesWithTag(ManagementTags.CATEGORIES_TYPE_INCOME).assertCountEquals(1)
+    }
+
+    @Test
+    fun `新增分类在整页编辑器内按分组选图标并写入`() {
+        composeRule.setContent { CategoriesRouteHost(harness) }
+        composeRule.awaitTag(ManagementTags.CATEGORIES_ACTIVE_COUNT)
+
+        composeRule.onNodeWithTag(ManagementTags.CATEGORIES_ADD).performClick()
+        composeRule.settleUi()
+        composeRule.onNodeWithTag(ManagementTags.CATEGORIES_EDITOR_DIALOG).assertIsDisplayed()
+        listOf("常用", "收入", "生活", "其他").forEach { title ->
+            composeRule.onNodeWithTag(ManagementTags.categoryIconGroup(title)).assertExists()
+        }
+        // 名称为空时参考应用的「完成」不可点。
+        composeRule.onNodeWithTag(ManagementTags.CATEGORIES_SAVE).assertIsNotEnabled()
+
+        composeRule.onNodeWithTag(ManagementTags.CATEGORIES_NAME_FIELD).performTextInput("夜宵")
+        composeRule.settleUi()
+        composeRule.onNodeWithTag(ManagementTags.CATEGORIES_SAVE).assertIsEnabled()
+
+        composeRule.onNodeWithTag(ManagementTags.categoryIconOption("snacks")).performScrollTo().performClick()
+        composeRule.settleUi()
+        composeRule.onNodeWithTag(ManagementTags.categoryIconOption("snacks")).assertIsSelected()
+
+        composeRule.onNodeWithTag(ManagementTags.CATEGORIES_SAVE).performClick()
+        composeRule.settleUi()
+        composeRule.onNodeWithTag(ManagementTags.CATEGORIES_EDITOR_DIALOG).assertDoesNotExist()
+        val created = harness.categories(TransactionType.EXPENSE).single { it.name == "夜宵" }
+        assertEquals("snacks", created.iconKey)
+    }
+
+    @Test
+    fun `编辑页取消不写入任何改动`() {
+        composeRule.setContent { CategoriesRouteHost(harness) }
+        composeRule.awaitTag(ManagementTags.CATEGORIES_ACTIVE_COUNT)
+        val before = harness.categories(TransactionType.EXPENSE).map { it.id to it.name }
+
+        composeRule.onNodeWithTag(ManagementTags.CATEGORIES_ADD).performClick()
+        composeRule.settleUi()
+        composeRule.onNodeWithTag(ManagementTags.CATEGORIES_NAME_FIELD).performTextInput("临时分类")
+        composeRule.settleUi()
+        composeRule.onNodeWithTag(ManagementTags.CATEGORIES_CANCEL).performClick()
+        composeRule.settleUi()
+
+        composeRule.onNodeWithTag(ManagementTags.CATEGORIES_EDITOR_DIALOG).assertDoesNotExist()
+        assertEquals(before, harness.categories(TransactionType.EXPENSE).map { it.id to it.name })
     }
 }
