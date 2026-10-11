@@ -29,6 +29,28 @@ class AdvancedLedgerFeaturesTest : LedgerRoomTestBase() {
         return (repository.createTransaction(TransactionDraft(TransactionType.EXPENSE, 1250, "cat_expense_food", "acc_default", date, "午餐"), request) as SaveResult.Success).transactionId
     }
 
+    @Test fun newerChunkedSettingsRemainReadableAndNewerMetadataSurvivesOldSettingSave() = runDb {
+        create(request = "downgrade")
+        val transactions = repository.exportConsistentSnapshot().transactions
+        val newer = JSONObject().put("monthStartDay", 5)
+            .put("templates", JSONArray().put(JSONObject().put("name", "虚构新版模板")))
+            .put("members", JSONArray())
+            .put("checkInDays", JSONArray().put("2026-10-06"))
+            .put("transactionImages", JSONObject().put("fictional", "x".repeat(300_000)))
+        val payload = newer.toString()
+        db.advancedSettingsDao().replaceChunks(payload.chunked(256 * 1024).mapIndexed { i, chunk ->
+            com.blueledger.app.data.local.AdvancedSettingsEntity(id = i + 1, payload = chunk)
+        })
+        val reopened = LedgerRepositoryImpl(db, clock)
+        assertEquals(5, reopened.observeAdvancedSettings().first().monthStartDay)
+        reopened.updateAdvancedSettings { it.copy(monthStartDay = 10) }.requireSuccess()
+        val stored = JSONObject(db.advancedSettingsDao().getChunks().joinToString("") { it.payload })
+        assertEquals(newer.getJSONArray("templates").toString(), stored.getJSONArray("templates").toString())
+        assertEquals(newer.getJSONObject("transactionImages").toString(), stored.getJSONObject("transactionImages").toString())
+        assertEquals(10, reopened.observeAdvancedSettings().first().monthStartDay)
+        assertEquals(transactions, reopened.exportConsistentSnapshot().transactions)
+    }
+
     @Test fun dueRulesBackfillExactlyOnceAcrossRepositoryRestartAndDeletedOccurrence() = runDb {
         repository.initializeIfNeeded()
         repository.updateAdvancedSettings { it.copy(recurringRules = listOf(rule())) }.requireSuccess()

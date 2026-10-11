@@ -106,8 +106,6 @@ object BlueLedgerTokens {
     val ReferencePeriodHeight: Dp = 36.dp
     val ReferenceChartHeight: Dp = 108.dp
     const val ReferenceCategoryInsetFraction: Float = .071f
-    val ProfileCheckHeight: Dp = 32.dp
-    val ProfileCheckIcon: Dp = 18.dp
     val ProfileCount: TextUnit = 24.sp
     val ReferenceListIcon: Dp = 34.dp
     val ReferenceRankingVertical: Dp = 10.dp

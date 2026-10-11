@@ -95,14 +95,25 @@ class LedgerRepositoryImpl(
     private val settingsDao = db.settingsDao()
     private val undoRegistry = UndoRegistry()
     private val advancedDao = db.advancedSettingsDao()
-    private val advancedJson = Json { encodeDefaults = true }
-    private fun decodeAdvanced(row: AdvancedSettingsEntity?): AdvancedLedgerSettings = row?.let {
-        advancedJson.decodeFromString(AdvancedLedgerSettings.serializer(), it.payload)
-    } ?: AdvancedLedgerSettings()
-    private suspend fun readAdvanced() = decodeAdvanced(advancedDao.get())
-    private suspend fun writeAdvanced(value: AdvancedLedgerSettings) = advancedDao.put(AdvancedSettingsEntity(payload = advancedJson.encodeToString(AdvancedLedgerSettings.serializer(), value)))
+    // Downgrade compatibility: read newer metadata without exposing newer features.
+    private val advancedJson = Json { encodeDefaults = true; ignoreUnknownKeys = true }
+    private fun decodeAdvanced(rows: List<AdvancedSettingsEntity>): AdvancedLedgerSettings =
+        if (rows.isEmpty()) AdvancedLedgerSettings() else
+            advancedJson.decodeFromString(AdvancedLedgerSettings.serializer(), rows.joinToString("") { it.payload })
+    private suspend fun readAdvanced() = decodeAdvanced(advancedDao.getChunks())
+    private suspend fun writeAdvanced(value: AdvancedLedgerSettings) {
+        val rows = advancedDao.getChunks()
+        val previous = if (rows.isEmpty()) kotlinx.serialization.json.JsonObject(emptyMap()) else
+            advancedJson.parseToJsonElement(rows.joinToString("") { it.payload }) as kotlinx.serialization.json.JsonObject
+        val known = advancedJson.parseToJsonElement(advancedJson.encodeToString(AdvancedLedgerSettings.serializer(), value)) as kotlinx.serialization.json.JsonObject
+        // Keep metadata belonging to newer versions when the old app saves a setting.
+        val payload = kotlinx.serialization.json.JsonObject(previous + known).toString()
+        advancedDao.replaceChunks(payload.chunked(256 * 1024).mapIndexed { index, chunk ->
+            AdvancedSettingsEntity(id = index + 1, payload = chunk)
+        })
+    }
 
-    override fun observeAdvancedSettings(): Flow<AdvancedLedgerSettings> = advancedDao.observe().map(::decodeAdvanced).distinctUntilChanged()
+    override fun observeAdvancedSettings(): Flow<AdvancedLedgerSettings> = advancedDao.observeChunks().map(::decodeAdvanced).distinctUntilChanged()
 
     override suspend fun updateAdvancedSettings(change: (AdvancedLedgerSettings) -> AdvancedLedgerSettings): MutationResult = writeOperation({ MutationResult.Failure(it) }) {
         db.withTransaction {

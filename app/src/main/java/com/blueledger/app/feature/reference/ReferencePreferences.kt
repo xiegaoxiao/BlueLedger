@@ -10,6 +10,13 @@ import com.blueledger.app.core.model.TransactionType
 class ReferencePreferences(context: Context) {
     val storage: SharedPreferences = context.applicationContext.getSharedPreferences("ledger_ui_preferences", Context.MODE_PRIVATE)
 
+    init {
+        // Retired check-in and badge preferences have no role in a free ledger tool.
+        if (listOf("check_in", "check_streak", "profile_badge").any(storage::contains)) {
+            storage.edit().remove("check_in").remove("check_streak").remove("profile_badge").apply()
+        }
+    }
+
     /**
      * 每次写入后自增，界面读取它来刷新当前页。
      *

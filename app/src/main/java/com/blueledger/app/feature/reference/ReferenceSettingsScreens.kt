@@ -17,7 +17,6 @@ import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Backup
-import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Info
@@ -54,11 +53,8 @@ import java.time.YearMonth
 @Composable
 fun ReferenceMineRoute(repository: LedgerRepository, clock: Clock, onSettings: () -> Unit, onAccounts: () -> Unit, onData: () -> Unit) {
     val (state, _) = ledgerState(repository, "reference.mine", TransactionFilter(limit = Int.MAX_VALUE))
-    val prefs = rememberReferencePreferences()
     val appVersion = AppVersionResolver.resolve(LocalContext.current)
     var help by remember { mutableStateOf<String?>(null) }
-    val checked = prefs.storage.getString("check_in", "") == clock.today().toString()
-    val streak = prefs.storage.getInt("check_streak", 0)
     val first = state.earliestDate
     val days = first?.let { (java.time.temporal.ChronoUnit.DAYS.between(it, clock.today()) + 1).toInt() } ?: 0
     LazyColumn(Modifier.fillMaxSize().background(T.Background).testTag("mine_screen"), contentPadding = PaddingValues(bottom = T.SpaceL)) {
@@ -66,24 +62,11 @@ fun ReferenceMineRoute(repository: LedgerRepository, clock: Clock, onSettings: (
             Column(Modifier.fillMaxWidth().background(T.Primary)) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = T.SpaceHuge).padding(top = T.SpaceXl), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(T.ProfileAvatar).clip(CircleShape).background(T.Surface), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Person, null, tint = T.Primary, modifier = Modifier.size(T.ProfileAvatar * .6f)) }
-                    Column(Modifier.weight(1f).padding(horizontal = T.SpaceM)) { Text("蓝记", fontSize = T.PageTitle, color = T.OnBrand); Text("我的账本", color = T.OnBrandSecondary, fontSize = T.Caption) }
-                    val checkHeight = if (androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.4f) Modifier.heightIn(min = T.MinTouchTarget) else Modifier.height(T.ProfileCheckHeight)
-                    OutlinedButton(enabled = !checked, shape = CircleShape, modifier = Modifier.then(checkHeight).testTag("mine_check_in"),
-                        border = if (checked) BorderStroke(1.dp, T.OnBrandOutline) else null,
-                        colors = ButtonDefaults.outlinedButtonColors(containerColor = T.Surface, contentColor = T.Primary,
-                            disabledContainerColor = androidx.compose.ui.graphics.Color.Transparent, disabledContentColor = T.OnBrand),
-                        contentPadding = PaddingValues(horizontal = T.SpaceS, vertical = T.SpaceXs), onClick = {
-                        val last = runCatching { LocalDate.parse(prefs.storage.getString("check_in", "")) }.getOrNull()
-                        prefs.storage.edit().putString("check_in", clock.today().toString())
-                            .putInt("check_streak", if (last == clock.today().minusDays(1)) streak + 1 else 1).apply()
-                    }) {
-                        Icon(if (checked) Icons.Outlined.Check else Icons.Outlined.CalendarToday, null, Modifier.size(T.ProfileCheckIcon))
-                        Spacer(Modifier.width(T.SpaceXs))
-                        Text(if (checked) "已打卡" else "打卡", fontSize = T.Caption)
-                    }
+                    Column(Modifier.weight(1f).padding(horizontal = T.SpaceM)) { Text("蓝记", fontSize = T.PageTitle, color = T.OnBrand); Text(if (androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.4f) "免费记账\n无广告" else "免费记账 · 无广告", color = T.OnBrandSecondary, fontSize = T.Caption) }
+
                 }
                 Row(Modifier.fillMaxWidth().padding(top = T.SpaceXl, bottom = T.SpaceM), horizontalArrangement = Arrangement.SpaceBetween) {
-                    listOf("连续打卡" to streak, "记账天数" to days, "记账总笔数" to state.totalCount).forEach { (title, count) ->
+                    listOf("记账天数" to days, "记账总笔数" to state.totalCount).forEach { (title, count) ->
                         Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) { Text(count.toString(), fontSize = T.ProfileCount, color = T.OnBrand); Text(title, fontSize = T.Caption, color = T.OnBrandSecondary, modifier = Modifier.padding(top = T.SpaceXs)) }
                     }
                 }
@@ -104,7 +87,7 @@ fun ReferenceMineRoute(repository: LedgerRepository, clock: Clock, onSettings: (
                 MineMenuDivider()
                 MineMenuRow("使用帮助", Icons.Outlined.HelpOutline) { help = "点击底部＋，选择分类后输入金额。键盘右侧可改日期、加减计算；点击完成保存。明细顶部选择月份，图表支持周、月、年及分类钻取。资产余额可手动调整，关联账户后随账单更新。备份可在数据管理中导出。" }
                 MineMenuDivider()
-                MineMenuRow("关于蓝记", Icons.Outlined.Info, appVersion) { help = "蓝记 $appVersion\n本地离线记账\n所有金额以整数分保存。" }
+                MineMenuRow("关于蓝记", Icons.Outlined.Info, appVersion) { help = "蓝记 $appVersion\n免费离线记账 · 无广告\n所有金额以整数分保存。" }
             }
         }
     }

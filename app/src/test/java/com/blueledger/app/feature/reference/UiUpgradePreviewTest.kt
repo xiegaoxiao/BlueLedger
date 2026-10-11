@@ -79,7 +79,7 @@ class UiUpgradePreviewTest {
         val density = ui.activity.resources.displayMetrics.density
         val root = ui.onRoot().fetchSemanticsNode().boundsInRoot
         val tags = listOf("home_shortcut_card", "overview_month_label", "reference_line_chart",
-            "stats_tab_week", "stats_month_label", "bills_summary_card", "mine_check_in",
+            "stats_tab_week", "stats_month_label", "bills_summary_card",
             "mine_settings", "mine_data", "entry_top_bar", "category_cat_expense_food",
             "key_7", "key_0", "global_record_button", "tab_overview", "tab_mine")
         val bounds = tags.mapNotNull { tag ->
@@ -109,10 +109,8 @@ class UiUpgradePreviewTest {
         assertTrue("账单汇总卡高度保持参考比例", heightDp("bills_summary_card") in 120f..128f)
         ui.onNodeWithTag("tab_mine").performClick()
         await("mine_settings"); snapshot("mine")
-        ui.onNodeWithTag("mine_check_in").performClick()
-        ui.waitUntil(10_000) { ui.onAllNodesWithText("已打卡").fetchSemanticsNodes().isNotEmpty() }
-        ui.onNodeWithTag("mine_check_in").assertIsNotEnabled(); snapshot("mine-checked")
-        assertEquals(1, ReferencePreferences(ui.activity).storage.getInt("check_streak", 0))
+        ui.onNodeWithTag("mine_check_in").assertDoesNotExist()
+        ui.onNodeWithText("免费记账 · 无广告").assertIsDisplayed()
         ui.onNodeWithTag("global_record_button").performClick()
         await("category_cat_expense_food"); snapshot("entry")
         ui.onNodeWithTag("category_cat_expense_food").performClick()
