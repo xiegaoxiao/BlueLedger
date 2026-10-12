@@ -34,6 +34,8 @@ import com.blueledger.app.core.model.ValidatedLedgerSnapshot
 import com.blueledger.app.core.model.ValidationCode
 import com.blueledger.app.core.model.YearAnalysis
 import com.blueledger.app.core.model.YearMonthAmount
+import com.blueledger.app.core.model.AdvancedLedgerSettings
+import com.blueledger.app.core.model.validationError
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -80,6 +82,7 @@ class InMemoryLedgerRepository(
         val processedRequestIds: Map<String, String>,
         val activeDeleteTokens: Map<String, String>,
         val deleteSequence: Long,
+        val advanced: AdvancedLedgerSettings = AdvancedLedgerSettings(),
     )
 
     private val state = MutableStateFlow(
@@ -154,6 +157,19 @@ class InMemoryLedgerRepository(
         }
 
     override fun observeSettings(): Flow<LedgerSettings> = state.map { it.settings }
+
+    override fun observeAdvancedSettings(): Flow<AdvancedLedgerSettings> = state.map { it.advanced }
+
+    override suspend fun updateAdvancedSettings(change: (AdvancedLedgerSettings) -> AdvancedLedgerSettings): MutationResult {
+        failNextWrite?.let { failNextWrite = null; return MutationResult.Failure(it) }
+        val current = state.value
+        val updated = change(current.advanced)
+        updated.validationError(current.categories, current.accounts, current.transactions.map { it.id }.toSet())?.let {
+            return MutationResult.Failure(LedgerError.Storage(it))
+        }
+        state.value = current.copy(advanced = updated)
+        return MutationResult.Success()
+    }
 
     override fun observeBackupRecord(): Flow<BackupRecord> = state.map { s ->
         BackupRecord(
@@ -458,6 +474,9 @@ class InMemoryLedgerRepository(
                     accounts = s.accounts + com.blueledger.app.core.model.LedgerAccount(
                         id = id, name = name, kind = command.kind,
                         openingBalanceCent = command.openingBalanceCent, isArchived = false,
+                        location = command.location ?: com.blueledger.app.core.model.AccountLocation.infer(name, command.kind),
+                        note = command.note.orEmpty(),
+                        openingHistory = com.blueledger.app.core.model.AssetHistory.record("", clock.today(), command.openingBalanceCent),
                     ),
                 )
             } else {
@@ -469,13 +488,46 @@ class InMemoryLedgerRepository(
                 s.copy(
                     accounts = s.accounts.map {
                         if (it.id == command.id) {
-                            it.copy(name = name, kind = command.kind, openingBalanceCent = command.openingBalanceCent)
+                            val flow = s.transactions.filter { tx -> tx.accountId == it.id && tx.deletedAt == null }
+                                .sumOf { tx -> if (tx.type.isIncome) tx.amountCent else -tx.amountCent }
+                            val opening = command.currentBalanceCent?.minus(flow) ?: command.openingBalanceCent
+                            if (kotlin.math.abs(opening) > Limits.MAX_OPENING_BALANCE_CENT || (command.currentBalanceCent?.let { balance -> kotlin.math.abs(balance) > Limits.MAX_OPENING_BALANCE_CENT } == true)) {
+                                result = MutationResult.Failure(LedgerError.Validation(ValidationCode.OPENING_BALANCE_OUT_OF_RANGE, "余额超出范围"))
+                                return@update s
+                            }
+                            it.copy(name = name, kind = command.kind, openingBalanceCent = opening,
+                                location = command.location ?: it.location, note = command.note ?: it.note,
+                                openingHistory = if (command.currentBalanceCent != null || opening != it.openingBalanceCent)
+                                    com.blueledger.app.core.model.AssetHistory.record(it.openingHistory, clock.today(), opening) else it.openingHistory)
                         } else {
                             it
                         }
                     },
                 )
             }
+        }
+        return result
+    }
+
+    override suspend fun transferAssets(fromId: String, toId: String, amountCent: Long): MutationResult {
+        failNextWrite?.let { failNextWrite = null; return MutationResult.Failure(it) }
+        var result: MutationResult = MutationResult.Success()
+        state.update { s ->
+            val from = s.accounts.firstOrNull { it.id == fromId && !it.isArchived }
+            val to = s.accounts.firstOrNull { it.id == toId && !it.isArchived }
+            val flow = s.transactions.filter { it.accountId == fromId && it.deletedAt == null }.sumOf { if (it.type.isIncome) it.amountCent else -it.amountCent }
+            val targetFlow = s.transactions.filter { it.accountId == toId && it.deletedAt == null }.sumOf { if (it.type.isIncome) it.amountCent else -it.amountCent }
+            val invalid = from == null || to == null || fromId == toId || amountCent !in 1..Limits.MAX_OPENING_BALANCE_CENT ||
+                from.openingBalanceCent + flow < amountCent || kotlin.math.abs(from.openingBalanceCent - amountCent) > Limits.MAX_OPENING_BALANCE_CENT ||
+                kotlin.math.abs(to.openingBalanceCent + amountCent) > Limits.MAX_OPENING_BALANCE_CENT ||
+                kotlin.math.abs(to.openingBalanceCent + targetFlow + amountCent) > Limits.MAX_OPENING_BALANCE_CENT
+            if (invalid) {
+                result = MutationResult.Failure(LedgerError.Validation(ValidationCode.OPENING_BALANCE_OUT_OF_RANGE, "账户、金额无效或余额不足")); s
+            } else s.copy(accounts = s.accounts.map { account ->
+                val delta = when (account.id) { fromId -> -amountCent; toId -> amountCent; else -> 0L }
+                if (delta == 0L) account else account.copy(openingBalanceCent = account.openingBalanceCent + delta,
+                    openingHistory = com.blueledger.app.core.model.AssetHistory.record(account.openingHistory, clock.today(), account.openingBalanceCent + delta))
+            })
         }
         return result
     }
@@ -596,6 +648,7 @@ class InMemoryLedgerRepository(
             accounts = s.accounts,
             budgets = s.budgets.map { (month, amount) -> com.blueledger.app.core.model.MonthlyBudget(month, amount) },
             settings = s.settings,
+            advanced = s.advanced,
         )
     }
 
@@ -611,6 +664,7 @@ class InMemoryLedgerRepository(
             budgets = snap.budgets.associate { it.yearMonth to it.amountCent },
             // 最近成功备份时间属于“本机操作记录”，不随备份文件回滚。
             settings = snap.settings.copy(lastBackupAt = previousBackupAt, lastBackupFileName = previousBackupName),
+            advanced = snap.advanced,
             processedRequestIds = emptyMap(),
             activeDeleteTokens = emptyMap(),
             deleteSequence = 0L,

@@ -120,6 +120,7 @@ class JsonBackupCodec(private val clock: Clock) : LedgerBackupCodec {
                     isArchived = it.isArchived,
                     note = it.note,
                     openingHistory = it.openingHistory,
+                    location = it.location.name,
                 )
             },
             budgets = snapshot.budgets
@@ -335,8 +336,8 @@ class JsonBackupCodec(private val clock: Clock) : LedgerBackupCodec {
     }
 
     private fun verifyAdvancedTypes(value: JsonObject) {
-        checkObjectTypes(value, mapOf("monthStartDay" to FieldKind.NUMBER), "advanced")
-        for (name in listOf("tags", "categoryBudgets", "recurringRules")) {
+        checkObjectTypes(value, mapOf("monthStartDay" to FieldKind.NUMBER, "yearlyBudgetCent" to FieldKind.NUMBER), "advanced")
+        for (name in listOf("tags", "categoryBudgets", "yearlyCategoryBudgets", "recurringRules")) {
             (value[name] as? JsonArray)?.forEach { item ->
                 val entry = item as? JsonObject ?: fail(ValidationCode.BACKUP_FIELD_TYPE_INVALID, "高级设置条目不是对象")
                 checkObjectTypes(entry, mapOf(
@@ -456,6 +457,10 @@ class JsonBackupCodec(private val clock: Clock) : LedgerBackupCodec {
                 isArchived = dto.isArchived,
                 note = dto.note,
                 openingHistory = dto.openingHistory,
+                location = dto.location?.let { raw ->
+                    runCatching { com.blueledger.app.core.model.AccountLocation.valueOf(raw) }.getOrNull()
+                        ?: fail(ValidationCode.BACKUP_FIELD_TYPE_INVALID, "账户位置不合法")
+                } ?: com.blueledger.app.core.model.AccountLocation.infer(name, kind),
             )
             accountById[dto.id] = account
             if (dto.note.length > Limits.MAX_NOTE_LENGTH || runCatching {
@@ -692,6 +697,7 @@ class JsonBackupCodec(private val clock: Clock) : LedgerBackupCodec {
             "isArchived" to FieldKind.BOOLEAN,
             "note" to FieldKind.STRING,
             "openingHistory" to FieldKind.STRING,
+            "location" to FieldKind.STRING,
         )
 
         val BUDGET_FIELD_KINDS = mapOf(

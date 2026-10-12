@@ -373,7 +373,8 @@ private fun BlueLedgerNavHost(
         }
         composable("advanced") {
             com.blueledger.app.feature.advanced.AdvancedFeaturesRoute(container.ledgerRepository, container.clock,
-                onBack = { navController.popBackStack() }, onDetail = { navController.navigate(Routes.detail(it)) })
+                onBack = { navController.popBackStack() }, onDetail = { navController.navigate(Routes.detail(it)) },
+                onBudget = { navController.navigate(Routes.budget()) })
         }
         composable("migrate") {
             ReferenceMigrateRoute(container.ledgerRepository, onBack = { navController.popBackStack() })
@@ -466,7 +467,7 @@ private fun BlueLedgerBottomBar(
 ) {
     val largeFont = androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.4f
     val baseHeight = if (largeFont) 76.dp else BlueLedgerTokens.ReferenceBottomBarHeight
-    Box(modifier.fillMaxWidth().navigationBarsPadding().height(baseHeight + BlueLedgerTokens.ReferenceRecordOverlap)) {
+    Box(modifier.fillMaxWidth().background(BlueLedgerTokens.Surface).navigationBarsPadding().height(baseHeight + BlueLedgerTokens.ReferenceRecordOverlap)) {
         Surface(Modifier.fillMaxWidth().height(baseHeight).align(Alignment.BottomCenter),
             color = BlueLedgerTokens.Surface, shadowElevation = BlueLedgerTokens.CardElevation) {}
         Row(

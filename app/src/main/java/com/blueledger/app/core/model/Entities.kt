@@ -49,6 +49,7 @@ data class LedgerAccount(
     val note: String = "",
     /** 按日期保存期初基准调整：epochDay:cent，以分号分隔；余额仍包含对应账单。 */
     val openingHistory: String = "",
+    val location: AccountLocation = AccountLocation.infer(name, kind),
 )
 
 /**

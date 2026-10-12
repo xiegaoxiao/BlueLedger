@@ -57,6 +57,7 @@ data class AccountBalanceRow(
     val transactionCount: Int,
     val note: String = "",
     val openingHistory: String = "",
+    val location: com.blueledger.app.core.model.AccountLocation = com.blueledger.app.core.model.AccountLocation.infer(name, kind),
 )
 
 /** 某月预算状态：budgetCent 为 null 表示未设置（绝不用 0 表达未设置）。 */

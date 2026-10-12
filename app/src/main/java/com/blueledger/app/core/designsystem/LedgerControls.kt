@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
@@ -31,6 +33,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -49,17 +52,20 @@ fun LedgerPrimaryButton(
     enabled: Boolean = true,
     loading: Boolean = false,
     testTag: String? = null,
+    shape: RoundedCornerShape = RoundedCornerShape(BlueLedgerTokens.RadiusButton),
+    height: Dp? = null,
+    textStyle: TextStyle = LedgerTextStyles.button,
+    contentPadding: PaddingValues = PaddingValues(horizontal = BlueLedgerTokens.SpaceL, vertical = BlueLedgerTokens.SpaceM),
     leadingIcon: (@Composable () -> Unit)? = null,
 ) {
     val clickable = enabled && !loading
     val background = if (clickable) BlueLedgerTokens.Primary else LedgerTints.disabledSurface()
     val contentColor = if (clickable) BlueLedgerTokens.Surface else BlueLedgerTokens.TextSecondary
-    val shape = RoundedCornerShape(BlueLedgerTokens.RadiusButton)
 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = BlueLedgerTokens.ButtonHeight)
+            .then(if (height == null) Modifier.heightIn(min = BlueLedgerTokens.ButtonHeight) else Modifier.height(height))
             .shadow(
                 elevation = if (clickable) BlueLedgerTokens.CardElevationRaised else 0.dp,
                 shape = shape,
@@ -69,7 +75,7 @@ fun LedgerPrimaryButton(
             .background(background)
             .then(if (testTag != null) Modifier.testTag(testTag) else Modifier)
             .clickable(enabled = clickable, role = Role.Button, onClickLabel = text, onClick = onClick)
-            .padding(horizontal = BlueLedgerTokens.SpaceL, vertical = BlueLedgerTokens.SpaceM),
+            .padding(contentPadding),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -86,7 +92,7 @@ fun LedgerPrimaryButton(
         }
         Text(
             text = text,
-            style = LedgerTextStyles.button,
+            style = textStyle,
             color = contentColor,
             maxLines = 2,
             textAlign = TextAlign.Center,

@@ -46,6 +46,9 @@ data class AccountCommand(
     val kind: AccountKind,
     val openingBalanceCent: Long,
     val note: String? = null,
+    val location: AccountLocation? = null,
+    /** For an existing account, desired current balance; opening basis is resolved atomically. */
+    val currentBalanceCent: Long? = null,
 )
 
 /** 一次删除操作的撤销凭据。与本次删除事件绑定，不可串用到另一次删除。 */

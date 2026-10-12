@@ -1,5 +1,15 @@
 package com.blueledger.app.feature.reference
 
+import com.blueledger.app.core.designsystem.LedgerChoiceRow
+import com.blueledger.app.core.designsystem.LedgerCenteredTopBar
+import com.blueledger.app.core.designsystem.LedgerFittedAmountText
+import com.blueledger.app.core.designsystem.LedgerSectionCard
+import com.blueledger.app.core.designsystem.LedgerMenuDivider
+import com.blueledger.app.core.designsystem.LedgerMenuRow
+import com.blueledger.app.core.designsystem.LedgerNavigationRow
+import com.blueledger.app.core.designsystem.LedgerSectionLabel
+import com.blueledger.app.core.designsystem.LedgerSwitchRow
+import com.blueledger.app.core.designsystem.LedgerUnderlineTabs
 import android.Manifest
 import android.app.TimePickerDialog
 import android.os.Build
@@ -42,8 +52,6 @@ import com.blueledger.app.app.ui.LocalHideAmounts
 import com.blueledger.app.core.contract.*
 import com.blueledger.app.core.model.*
 import com.blueledger.app.core.money.Money
-import com.blueledger.app.feature.entry.AmountInput
-import com.blueledger.app.feature.entry.EntryAmountKeyboard
 import com.blueledger.app.feature.management.AppVersionResolver
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -73,50 +81,31 @@ fun ReferenceMineRoute(repository: LedgerRepository, clock: Clock, onSettings: (
             }
         }
         item {
-            MineMenuCard {
-                MineMenuRow("我的账本", Icons.Outlined.ReceiptLong, "默认账本") { help = "账本数据仅保存在本机，可在数据管理中备份和恢复。" }
-                MineMenuDivider()
-                MineMenuRow("资产管家", Icons.Outlined.AccountBalanceWallet, onClick = onAccounts)
-                MineMenuDivider()
-                MineMenuRow("设置", Icons.Outlined.Settings, tag = "mine_settings", onClick = onSettings)
+            LedgerSectionCard(
+                modifier = Modifier.padding(horizontal = T.SpaceL).padding(top = T.SpaceL),
+                contentPadding = PaddingValues(0.dp), elevation = 0.dp,
+            ) {
+                LedgerMenuRow("我的账本", Icons.Outlined.ReceiptLong, "默认账本") { help = "账本数据仅保存在本机，可在数据管理中备份和恢复。" }
+                LedgerMenuDivider()
+                LedgerMenuRow("资产管家", Icons.Outlined.AccountBalanceWallet, onClick = onAccounts)
+                LedgerMenuDivider()
+                LedgerMenuRow("设置", Icons.Outlined.Settings, tag = "mine_settings", onClick = onSettings)
             }
         }
         item {
-            MineMenuCard {
-                MineMenuRow("数据管理", Icons.Outlined.Backup, tag = "mine_data", onClick = onData)
-                MineMenuDivider()
-                MineMenuRow("使用帮助", Icons.Outlined.HelpOutline) { help = "点击底部＋，选择分类后输入金额。键盘右侧可改日期、加减计算；点击完成保存。明细顶部选择月份，图表支持周、月、年及分类钻取。资产余额可手动调整，关联账户后随账单更新。备份可在数据管理中导出。" }
-                MineMenuDivider()
-                MineMenuRow("关于蓝记", Icons.Outlined.Info, appVersion) { help = "蓝记 $appVersion\n免费离线记账 · 无广告\n所有金额以整数分保存。" }
+            LedgerSectionCard(
+                modifier = Modifier.padding(horizontal = T.SpaceL).padding(top = T.SpaceL),
+                contentPadding = PaddingValues(0.dp), elevation = 0.dp,
+            ) {
+                LedgerMenuRow("数据管理", Icons.Outlined.Backup, tag = "mine_data", onClick = onData)
+                LedgerMenuDivider()
+                LedgerMenuRow("使用帮助", Icons.Outlined.HelpOutline) { help = "点击底部＋，选择分类后输入金额。键盘右侧可改日期、加减计算；点击完成保存。明细顶部选择月份，图表支持周、月、年及分类钻取。资产余额可手动调整，关联账户后随账单更新。备份可在数据管理中导出。" }
+                LedgerMenuDivider()
+                LedgerMenuRow("关于蓝记", Icons.Outlined.Info, appVersion) { help = "蓝记 $appVersion\n免费离线记账 · 无广告\n所有金额以整数分保存。" }
             }
         }
     }
     help?.let { text -> AlertDialog(onDismissRequest = { help = null }, title = { Text("蓝记") }, text = { Text(text) }, confirmButton = { TextButton(onClick = { help = null }) { Text("知道了") } }) }
-}
-
-@Composable
-private fun MineMenuCard(content: @Composable ColumnScope.() -> Unit) {
-    Surface(Modifier.padding(horizontal = T.SpaceL).padding(top = T.SpaceL).fillMaxWidth(),
-        shape = RoundedCornerShape(T.RadiusCard), color = T.Surface) {
-        Column(content = content)
-    }
-}
-
-@Composable
-private fun MineMenuDivider() {
-    HorizontalDivider(Modifier.padding(start = T.SpaceL + T.IconMedium + T.SpaceM, end = T.SpaceL),
-        color = T.Border, thickness = .5.dp)
-}
-
-@Composable
-private fun MineMenuRow(title: String, icon: ImageVector, value: String = "", tag: String = "", onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min = T.MenuRowMinHeight).clickable(onClick = onClick)
-        .testTag(tag).padding(horizontal = T.SpaceL, vertical = T.SpaceM), verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, Modifier.size(T.IconMedium), tint = T.Primary)
-        Text(title, Modifier.weight(1f).padding(horizontal = T.SpaceM), fontSize = T.Body, color = T.TextPrimary)
-        if (value.isNotEmpty()) Text(value, fontSize = T.BodySmall, color = T.TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Icon(Icons.Outlined.ChevronRight, null, Modifier.padding(start = T.SpaceS).size(T.IconSmall), tint = T.TextSecondary)
-    }
 }
 
 @Composable
@@ -187,51 +176,51 @@ fun ReferenceSettingsRoute(repository: LedgerRepository, clock: Clock, onBack: (
         return
     }
     Column(Modifier.fillMaxSize().background(T.Background).navigationBarsPadding()) {
-        ReferenceTitle(if (page == "账户设置") "收支账户设置" else page, ::goBack, blue = true)
+        LedgerCenteredTopBar(if (page == "账户设置") "收支账户设置" else page, ::goBack, blue = true)
         LazyColumn(Modifier.weight(1f)) {
             when (page) {
                 "设置" -> {
-                    item { SectionLabel("功能设置"); ReferenceRow("类别设置", tag = "mine_categories", onClick = { onCategories(TransactionType.EXPENSE) }) }
-                    item { ReferenceRow("收支账户", subtitle = "开启后，主账本记账时可选收支账户", onClick = { page = "账户设置" }) }
-                    item { ReferenceRow("默认记账类型", if (prefs.defaultType.isExpense) "支出" else "收入") { selection = "entry" } }
-                    item { ReferenceRow("图表页设置") { page = "图表页设置" } }
-                    item { ReferenceRow("高级功能", subtitle = "分类预算、自动记账、标签、日历、月起始日与回收站", tag = "mine_advanced", onClick = onAdvanced) }
-                    item { SectionLabel("个性化设置"); ReferenceRow("声音与触感") { page = "声音与触感" } }
-                    item { ReferenceRow("记账提醒", if (prefs.remindersEnabled) "已开启" else "未开启") { page = "记账提醒" } }
-                    item { SectionLabel("数据设置"); ReferenceRow("数据导出与备份", tag = "mine_data", onClick = onData) }
-                    item { val hidden = LocalHideAmounts.current; SwitchRow("隐藏总金额", hidden, "hide_amounts_switch") { scope.launch { repository.setHideAmounts(it) } } }
-                    item { ReferenceRow("数据转移", onClick = onMigrate) }
-                    item { SectionLabel("其他设置"); SwitchRow("快捷编辑", prefs.quickEdit) { prefs.quickEdit = it } }
+                    item { LedgerSectionLabel("功能设置"); LedgerNavigationRow("类别设置", tag = "mine_categories", onClick = { onCategories(TransactionType.EXPENSE) }) }
+                    item { LedgerNavigationRow("收支账户", subtitle = "开启后，主账本记账时可选收支账户", onClick = { page = "账户设置" }) }
+                    item { LedgerNavigationRow("默认记账类型", if (prefs.defaultType.isExpense) "支出" else "收入") { selection = "entry" } }
+                    item { LedgerNavigationRow("图表页设置") { page = "图表页设置" } }
+                    item { LedgerNavigationRow("高级功能", subtitle = "分类预算、自动记账、标签、日历、月起始日与回收站", tag = "mine_advanced", onClick = onAdvanced) }
+                    item { LedgerSectionLabel("个性化设置"); LedgerNavigationRow("声音与触感") { page = "声音与触感" } }
+                    item { LedgerNavigationRow("记账提醒", if (prefs.remindersEnabled) "已开启" else "未开启") { page = "记账提醒" } }
+                    item { LedgerSectionLabel("数据设置"); LedgerNavigationRow("数据导出与备份", tag = "mine_data", onClick = onData) }
+                    item { val hidden = LocalHideAmounts.current; LedgerSwitchRow("隐藏总金额", hidden, "hide_amounts_switch") { scope.launch { repository.setHideAmounts(it) } } }
+                    item { LedgerNavigationRow("数据转移", onClick = onMigrate) }
+                    item { LedgerSectionLabel("其他设置"); LedgerSwitchRow("快捷编辑", prefs.quickEdit) { prefs.quickEdit = it } }
                 }
                 "账户设置" -> {
-                    item { SwitchRow("收支账户", accountsLinked, tag = "account_association_switch", subtitle = "开启后，主账本记账时可选收支账户") { accountsLinked = it; prefs.accountAssociation = it } }
-                    item { ReferenceRow("账户展示设置", subtitle = "设置记账时可选择的账户", enabled = accountsLinked, onClick = onAccounts) }
+                    item { LedgerSwitchRow("收支账户", accountsLinked, tag = "account_association_switch", subtitle = "开启后，主账本记账时可选收支账户") { accountsLinked = it; prefs.accountAssociation = it } }
+                    item { LedgerNavigationRow("账户展示设置", subtitle = "设置记账时可选择的账户", enabled = accountsLinked, onClick = onAccounts) }
                     item {
                         val name = accounts.firstOrNull { it.account.id == prefs.defaultAccount(TransactionType.EXPENSE) }?.account?.name ?: "不关联账户"
-                        ReferenceRow("默认支出账户", name, subtitle = "记支出时系统默认选中的账户", enabled = accountsLinked) { selection = "expenseAccount" }
+                        LedgerNavigationRow("默认支出账户", value = name, subtitle = "记支出时系统默认选中的账户", enabled = accountsLinked) { selection = "expenseAccount" }
                     }
                     item {
                         val name = accounts.firstOrNull { it.account.id == prefs.defaultAccount(TransactionType.INCOME) }?.account?.name ?: "不关联账户"
-                        ReferenceRow("默认收入账户", name, subtitle = "记收入时系统默认选中的账户", enabled = accountsLinked) { selection = "incomeAccount" }
+                        LedgerNavigationRow("默认收入账户", value = name, subtitle = "记收入时系统默认选中的账户", enabled = accountsLinked) { selection = "incomeAccount" }
                     }
                 }
                 "图表页设置" -> {
-                    item { Spacer(Modifier.height(10.dp)); ReferenceRow("默认收支类型", if (prefs.chartType.isExpense) "支出" else "收入") { selection = "chartType" } }
-                    item { ReferenceRow("默认收支周期", when (prefs.chartPeriod) { ChartPeriod.WEEK -> "周"; ChartPeriod.MONTH -> "月"; ChartPeriod.YEAR -> "年" }) { selection = "chartPeriod" } }
+                    item { Spacer(Modifier.height(10.dp)); LedgerNavigationRow("默认收支类型", if (prefs.chartType.isExpense) "支出" else "收入") { selection = "chartType" } }
+                    item { LedgerNavigationRow("默认收支周期", when (prefs.chartPeriod) { ChartPeriod.WEEK -> "周"; ChartPeriod.MONTH -> "月"; ChartPeriod.YEAR -> "年" }) { selection = "chartPeriod" } }
                 }
                 "声音与触感" -> {
-                    item { SwitchRow("按键声音", prefs.sound) { prefs.sound = it } }
-                    item { SwitchRow("触感反馈", prefs.haptic) { prefs.haptic = it } }
+                    item { LedgerSwitchRow("按键声音", prefs.sound) { prefs.sound = it } }
+                    item { LedgerSwitchRow("触感反馈", prefs.haptic) { prefs.haptic = it } }
                 }
                 "记账提醒" -> {
-                    item { SwitchRow("记账提醒", prefs.remindersEnabled, onChange = ::changeReminder) }
+                    item { LedgerSwitchRow("记账提醒", prefs.remindersEnabled, onChange = ::changeReminder) }
                     items(prefs.reminderTimes.sorted(), key = { it }) { time ->
                         Row(Modifier.fillMaxWidth().background(T.Surface), verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.weight(1f)) { ReferenceRow(time) { pickTime(time) } }
+                            Box(Modifier.weight(1f)) { LedgerNavigationRow(time) { pickTime(time) } }
                             TextButton(onClick = { prefs.reminderTimes = prefs.reminderTimes - time; LedgerReminders.reschedule(context) }) { Text("删除") }
                         }
                     }
-                    item { ReferenceRow("＋ 添加提醒") { pickTime() }; Text("提醒时间受系统省电调度影响。", fontSize = 12.sp, color = T.TextSecondary, modifier = Modifier.padding(20.dp)) }
+                    item { LedgerNavigationRow("＋ 添加提醒") { pickTime() } }
                 }
             }
             error?.let { item { Text(it, color = T.Risk, modifier = Modifier.padding(20.dp)) } }
@@ -243,37 +232,16 @@ fun ReferenceSettingsRoute(repository: LedgerRepository, clock: Clock, onBack: (
 internal fun ReferenceChoicePage(title: String, options: List<String>, selected: Int, hint: String,
     onBack: () -> Unit, onSelect: (Int) -> Unit) {
     Column(Modifier.fillMaxSize().background(T.Background).navigationBarsPadding().testTag("settings_choice_page")) {
-        ReferenceTitle(title, onBack, blue = true)
+        LedgerCenteredTopBar(title, onBack, blue = true)
         Spacer(Modifier.height(10.dp))
         LazyColumn {
             items(options.size) { index ->
-                Row(Modifier.fillMaxWidth().background(T.Surface)
-                    .selectable(index == selected, role = Role.RadioButton, onClick = { onSelect(index) })
-                    .heightIn(min = 50.dp).padding(horizontal = 16.dp, vertical = 12.dp)
-                    .testTag("settings_choice_$index"), verticalAlignment = Alignment.CenterVertically) {
-                    Text(options[index], fontSize = 16.sp, color = T.TextPrimary, modifier = Modifier.weight(1f))
-                    if (index == selected) Icon(Icons.Outlined.Check, "已选择", tint = T.TextPrimary, modifier = Modifier.size(24.dp))
+                LedgerChoiceRow(options[index], index == selected, tag = "settings_choice_$index") {
+                    onSelect(index)
                 }
-                HorizontalDivider(color = T.Border.copy(alpha = .45f), thickness = .5.dp)
             }
-            item { Text(hint, color = T.TextSecondary, fontSize = 13.sp, modifier = Modifier.padding(16.dp)) }
         }
     }
-}
-
-@Composable
-private fun SectionLabel(title: String) { Text(title, fontSize = 12.sp, color = T.TextSecondary, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) }
-
-@Composable
-private fun SwitchRow(title: String, selected: Boolean, tag: String = "", subtitle: String = "", onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().background(T.Surface).heightIn(min = 56.dp).padding(horizontal = 20.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 16.sp, color = T.TextPrimary)
-            if (subtitle.isNotEmpty()) Text(subtitle, fontSize = 12.sp, color = T.TextSecondary, modifier = Modifier.padding(top = 4.dp))
-        }
-        Switch(selected, onChange, Modifier.testTag(tag))
-    }
-    HorizontalDivider(color = T.Border, thickness = .5.dp)
 }
 
 @Composable
@@ -289,12 +257,11 @@ fun ReferenceMigrateRoute(repository: LedgerRepository, onBack: () -> Unit) {
     var message by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     Column(Modifier.fillMaxSize().background(T.Surface).navigationBarsPadding()) {
-        ReferenceTitle("选择转出类别", onBack)
-        ReferenceTabs(listOf(TransactionType.EXPENSE, TransactionType.INCOME), type, { if (it.isExpense) "支出" else "收入" }, { typeName = it.name })
-        Text("将选中类别的全部有效账单转移到另一同类型类别。", color = T.TextSecondary, fontSize = 13.sp, modifier = Modifier.padding(20.dp))
+        LedgerCenteredTopBar("选择转出类别", onBack)
+        LedgerUnderlineTabs(listOf(TransactionType.EXPENSE, TransactionType.INCOME), type, { if (it.isExpense) "支出" else "收入" }, { typeName = it.name })
         message?.let { Text(it, Modifier.padding(20.dp), color = T.Primary) }
         LazyColumn { items(categories, key = { it.id }) { category ->
-            ReferenceRow(category.name + if (category.isArchived) "（已归档）" else "", "${state.rows.count { it.transaction.categoryId == category.id }}笔") { source = category }
+            LedgerNavigationRow(category.name + if (category.isArchived) "（已归档）" else "", value = "${state.rows.count { it.transaction.categoryId == category.id }}笔") { source = category }
         } }
     }
     source?.let { from ->
@@ -314,77 +281,5 @@ fun ReferenceMigrateRoute(repository: LedgerRepository, onBack: () -> Unit) {
                 busy = false; target = null; source = null
             }
         }) { Text(if (busy) "转移中…" else "转移") } }, dismissButton = { TextButton(enabled = !busy, onClick = { target = null; source = null }) { Text("取消") } })
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun ReferenceBudgetRoute(repository: LedgerRepository, clock: Clock, initialMonth: YearMonth?, onBack: () -> Unit) {
-    val advancedFlow = remember(repository) { repository.observeAdvancedSettings() }
-    val advanced by advancedFlow.collectAsStateWithLifecycle(AdvancedLedgerSettings())
-    val currentLedgerMonth = LedgerPeriods.monthOf(clock.today(), advanced.monthStartDay)
-    var monthText by rememberSaveable { mutableStateOf((initialMonth ?: clock.currentYearMonth()).toString()) }
-    var observedMonthStartDay by rememberSaveable { mutableIntStateOf(1) }
-    LaunchedEffect(advanced.monthStartDay) { if (observedMonthStartDay != advanced.monthStartDay) { if (initialMonth == null) monthText = currentLedgerMonth.toString(); observedMonthStartDay = advanced.monthStartDay } }
-    val month = YearMonth.parse(monthText)
-    val flow = remember(repository, month) { repository.observeBudget(month) }
-    val budget by flow.collectAsStateWithLifecycle(initialValue = null)
-    var menu by remember { mutableStateOf(false) }
-    var editing by remember { mutableStateOf(false) }
-    var picker by remember { mutableStateOf(false) }
-    var amount by remember { mutableStateOf(AmountInput()) }
-    var busy by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var clearing by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-    val current = budget
-    Column(Modifier.fillMaxSize().background(T.Surface).navigationBarsPadding()) {
-        ReferenceTitle("月预算⌄", onBack) { TextButton(onClick = { picker = true }) { Text("${month.monthValue}月") } }
-        Row(Modifier.fillMaxWidth().padding(20.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("月度总预算", fontSize = 17.sp); TextButton(onClick = { menu = true }) { Text("编辑") } }
-        Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-            val progress = (current?.progressFraction ?: 0f).coerceIn(0f, 1f)
-            val primary = T.Primary; val border = T.Border
-            Box(Modifier.size(110.dp), contentAlignment = Alignment.Center) {
-                Canvas(Modifier.fillMaxSize().padding(10.dp)) {
-                    drawArc(border, 0f, 360f, false, style = androidx.compose.ui.graphics.drawscope.Stroke(10.dp.toPx()))
-                    if (current?.isSet == true) drawArc(primary, -90f, (1f - progress) * 360f, false, style = androidx.compose.ui.graphics.drawscope.Stroke(10.dp.toPx()))
-                }
-                Text(if (current?.isSet == true) "剩余${(100 * (1 - progress)).toInt()}%" else "未设置", fontSize = 13.sp, color = T.TextPrimary)
-            }
-            Column(Modifier.padding(start = 20.dp)) {
-                Text("剩余预算", fontSize = 13.sp, color = T.TextSecondary)
-                if (current?.budgetCent != null) ReferenceMoney(current.budgetCent - current.usedCent, large = true) else Text("未设置", fontSize = 26.sp)
-                Text("本月预算", color = T.TextSecondary, fontSize = 12.sp, modifier = Modifier.padding(top = 16.dp)); ReferenceMoney(current?.budgetCent ?: 0)
-                Text("本月支出", color = T.TextSecondary, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp)); ReferenceMoney(current?.usedCent ?: 0)
-            }
-        }
-        error?.let { Text(it, color = T.Risk, modifier = Modifier.padding(20.dp)) }
-    }
-    if (picker) ReferenceMonthPicker(month, currentLedgerMonth, { picker = false }) { monthText = it.toString(); picker = false }
-    if (menu) ModalBottomSheet(onDismissRequest = { menu = false }, containerColor = T.Surface) {
-        ReferenceRow("编辑月度总预算") { amount = current?.budgetCent?.let { AmountInput.fromCents(it) } ?: AmountInput(); editing = true; menu = false }
-        if (current?.isSet == true) ReferenceRow("清除月度总预算") { clearing = true; menu = false }
-        TextButton(onClick = { menu = false }, modifier = Modifier.fillMaxWidth()) { Text("取消") }
-    }
-    if (clearing) AlertDialog(onDismissRequest = { if (!busy) clearing = false }, title = { Text("清除每月预算？") }, text = { Text("账单和其他历史月份单独设置的预算仍会保留。") }, confirmButton = {
-        TextButton(enabled = !busy, onClick = { busy = true; scope.launch { val result = repository.setMonthlyBudget(null, month); if (result is MutationResult.Failure) error = result.error.message; busy = false; clearing = false } }) { Text("清除") }
-    }, dismissButton = { TextButton(onClick = { clearing = false }, enabled = !busy) { Text("取消") } })
-    if (editing) ModalBottomSheet(onDismissRequest = { if (!busy) editing = false },
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = T.Surface, dragHandle = null) {
-        ReferenceTitle("每月总预算") { TextButton(enabled = !busy, onClick = { editing = false }) { Text("关闭") } }
-        Text(amount.displayText, fontSize = 30.sp, modifier = Modifier.fillMaxWidth().padding(20.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
-        error?.let { Text(it, color = T.Risk, modifier = Modifier.padding(horizontal = 20.dp)) }
-        TextButton(onClick = {
-            val cent = amount.centsOrNull()
-            if (cent == null || cent <= 0) { error = "请输入大于0的预算"; return@TextButton }
-            busy = true; scope.launch {
-                when (val result = repository.setMonthlyBudget(cent, month)) {
-                    is MutationResult.Success -> { editing = false; error = null }
-                    is MutationResult.Failure -> error = result.error.message
-                }; busy = false
-            }
-        }, enabled = !busy && (amount.centsOrNull() ?: 0) > 0, modifier = Modifier.fillMaxWidth()) { Text(if (busy) "保存中…" else "确定") }
-        EntryAmountKeyboard(onDigit = { amount = amount.appendDigit(it) }, onDecimalPoint = { amount = amount.appendDecimalPoint() }, onDelete = { amount = amount.deleteLast() }, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), actionsEnabled = !busy)
     }
 }

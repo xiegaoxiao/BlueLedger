@@ -62,7 +62,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalView
 import com.blueledger.app.feature.reference.ReferencePreferences
-import com.blueledger.app.feature.reference.ReferenceTabs
+import com.blueledger.app.core.designsystem.LedgerUnderlineTabs
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -216,10 +216,10 @@ fun EntryScreen(
             // 本页**不得**再叠加 statusBarsPadding()，否则顶部会多出一段状态栏高度（总控裁决 2026-10-07）。
             if (categoryFirst) Box(Modifier.fillMaxWidth().background(BlueLedgerTokens.Primary).heightIn(min = BlueLedgerTokens.ReferenceEntryTitleHeight).testTag(TAG_ENTRY_TOP_BAR)) {
                 Box(Modifier.width(166.dp).align(Alignment.Center)) {
-                    ReferenceTabs(listOf(TransactionType.EXPENSE, TransactionType.INCOME), state.type,
+                    LedgerUnderlineTabs(listOf(TransactionType.EXPENSE, TransactionType.INCOME), state.type,
                         { if (it.isExpense) "支出" else "收入" },
                         { amountPanelOpen = false; viewModel.onTypeSelected(it) },
-                        { if (it.isExpense) "type_expense" else "type_income" }, onBrand = true)
+                        tag = { if (it.isExpense) "type_expense" else "type_income" }, onBrand = true)
                 }
                 TextButton(onClick = viewModel::onBackPressed, modifier = Modifier.align(Alignment.CenterEnd).testTag("btn_back")) { Text("取消", color = BlueLedgerTokens.OnBrand) }
             } else LedgerTopBar(
@@ -734,8 +734,8 @@ private fun EntryBottomArea(
         // 可用高度很小时只收紧间距（**不缩小任何字号、不隐藏保存按钮**）：
         // 给四行键盘 + 保存区留出确定空间，表单（本来就可滚）先被压缩。
         val compact = maxHeight < 600.dp
-        val keyGap = if (flat) 1.dp else if (compact) 4.dp else LedgerComponentSizes.keypadGap
-        val keyPadding = if (flat) 0.dp else if (compact) 4.dp else BlueLedgerTokens.SpaceS
+        val keyGap = .5.dp
+        val keyPadding = 0.dp
         val sectionGap = if (compact) 4.dp else BlueLedgerTokens.SpaceS
 
         Column(
@@ -789,12 +789,13 @@ private fun EntryBottomArea(
             }
 
             if (state.numericKeyboardVisible && amountPanelOpen) {
-                EntryAmountKeyboard(
+                com.blueledger.app.core.designsystem.LedgerAmountKeyboard(
                     onDigit = viewModel::onDigit,
                     onDecimalPoint = viewModel::onDecimalPoint,
                     onDelete = viewModel::onDelete,
                     keyGap = keyGap,
                     keyPadding = keyPadding,
+                    onKeyFeedback = rememberAmountKeyboardFeedback(),
                     onDate = { datePickerOpen = true },
                     dateLabel = if (state.occurredOn == state.today) "今天" else "${state.occurredOn.monthValue}/${state.occurredOn.dayOfMonth}",
                     onAdd = { viewModel.onOperator('+') },

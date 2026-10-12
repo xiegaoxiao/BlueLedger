@@ -701,6 +701,7 @@ class LedgerRepositoryImpl(
                             name = name,
                             nameKey = nameKey,
                             kind = command.kind,
+                            location = command.location ?: com.blueledger.app.core.model.AccountLocation.infer(name, command.kind),
                             openingBalanceCent = command.openingBalanceCent,
                             isArchived = false,
                             createdAtEpochMillis = now,
@@ -720,22 +721,51 @@ class LedgerRepositoryImpl(
                     if (duplicated != null && duplicated.id != existing.id) {
                         return@withTransaction MutationResult.Failure(duplicateAccountNameError())
                     }
+                    command.currentBalanceCent?.let { desired ->
+                        LedgerValidation.openingBalance(desired)?.let { return@withTransaction MutationResult.Failure(it) }
+                    }
+                    val opening = command.currentBalanceCent?.let { desired ->
+                        desired - ((accountDao.currentBalance(existing.id) ?: existing.openingBalanceCent) - existing.openingBalanceCent)
+                    } ?: command.openingBalanceCent
+                    LedgerValidation.openingBalance(opening)?.let { return@withTransaction MutationResult.Failure(it) }
                     accountDao.updateDetails(
                         id = existing.id,
                         name = name,
                         nameKey = nameKey,
                         kind = command.kind.name,
-                        openingBalanceCent = command.openingBalanceCent,
+                        location = (command.location ?: existing.location).name,
+                        openingBalanceCent = opening,
                         updatedAtEpochMillis = now,
                     )
                     val oldHistory = existing.openingHistory.ifEmpty {
                         com.blueledger.app.core.model.AssetHistory.record("", java.time.LocalDate.of(1970, 1, 1), existing.openingBalanceCent)
                     }
-                    val history = if (command.openingBalanceCent == existing.openingBalanceCent) existing.openingHistory
-                        else com.blueledger.app.core.model.AssetHistory.record(oldHistory, clock.today(), command.openingBalanceCent)
+                    val history = if (command.currentBalanceCent == null && opening == existing.openingBalanceCent) existing.openingHistory
+                        else com.blueledger.app.core.model.AssetHistory.record(oldHistory, clock.today(), opening)
                     accountDao.updateMetadata(existing.id, command.note ?: existing.note, history)
                     MutationResult.Success(existing.id)
                 }
+            }
+        }
+
+    override suspend fun transferAssets(fromId: String, toId: String, amountCent: Long): MutationResult =
+        writeOperation({ MutationResult.Failure(it) }) {
+            db.withTransaction {
+                fun invalid(message: String) = MutationResult.Failure(LedgerError.Validation(ValidationCode.OPENING_BALANCE_OUT_OF_RANGE, message))
+                if (fromId == toId || amountCent !in 1..Limits.MAX_OPENING_BALANCE_CENT) return@withTransaction invalid("请选择不同账户并输入有效金额")
+                val from = accountDao.getById(fromId) ?: return@withTransaction MutationResult.Failure(LedgerError.NotFound("account", fromId))
+                val to = accountDao.getById(toId) ?: return@withTransaction MutationResult.Failure(LedgerError.NotFound("account", toId))
+                if (from.isArchived || to.isArchived) return@withTransaction invalid("账户已移除")
+                if ((accountDao.currentBalance(fromId) ?: 0L) < amountCent) return@withTransaction invalid("转出账户余额不足")
+                if (kotlin.math.abs((accountDao.currentBalance(toId) ?: 0L) + amountCent) > Limits.MAX_OPENING_BALANCE_CENT) return@withTransaction invalid("转账后余额超出范围")
+                val bases = listOf(from to from.openingBalanceCent - amountCent, to to to.openingBalanceCent + amountCent)
+                if (bases.any { kotlin.math.abs(it.second) > Limits.MAX_OPENING_BALANCE_CENT }) return@withTransaction invalid("转账后余额超出范围")
+                bases.forEach { (account, base) ->
+                    accountDao.updateDetails(account.id, account.name, account.nameKey, account.kind.name, account.location.name, base, clock.now().toEpochMilli())
+                    val history = account.openingHistory.ifEmpty { com.blueledger.app.core.model.AssetHistory.record("", java.time.LocalDate.of(1970, 1, 1), account.openingBalanceCent) }
+                    accountDao.updateMetadata(account.id, account.note, com.blueledger.app.core.model.AssetHistory.record(history, clock.today(), base))
+                }
+                MutationResult.Success()
             }
         }
 
@@ -1294,6 +1324,7 @@ internal fun AccountEntity.toModel(): LedgerAccount = LedgerAccount(
     isArchived = isArchived,
     note = note,
     openingHistory = openingHistory,
+    location = location,
 )
 
 internal fun LedgerAccount.toEntity(nowMillis: Long): AccountEntity = AccountEntity(
@@ -1307,6 +1338,7 @@ internal fun LedgerAccount.toEntity(nowMillis: Long): AccountEntity = AccountEnt
     updatedAtEpochMillis = nowMillis,
     note = note,
     openingHistory = openingHistory,
+    location = location,
 )
 
 internal fun AccountBalanceRow.toModel(): AccountWithBalance = AccountWithBalance(
@@ -1318,6 +1350,7 @@ internal fun AccountBalanceRow.toModel(): AccountWithBalance = AccountWithBalanc
         isArchived = isArchived,
         note = note,
         openingHistory = openingHistory,
+        location = location,
     ),
     balanceCent = balanceCent,
     transactionCount = transactionCount,

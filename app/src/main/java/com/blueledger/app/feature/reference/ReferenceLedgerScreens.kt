@@ -1,6 +1,27 @@
 package com.blueledger.app.feature.reference
 
-import android.content.Intent
+import com.blueledger.app.core.designsystem.LedgerMonthlyReportHeader
+import com.blueledger.app.core.designsystem.LedgerTransactionRow
+import com.blueledger.app.core.designsystem.LedgerMonthlyBalanceCard
+import com.blueledger.app.core.designsystem.LedgerMetricsCard
+import com.blueledger.app.core.designsystem.LedgerMetric
+import com.blueledger.app.core.designsystem.LedgerReportSection
+import com.blueledger.app.core.designsystem.LedgerActionButton
+import com.blueledger.app.core.designsystem.LedgerActionStyle
+import com.blueledger.app.core.designsystem.LedgerBillToolbar
+import com.blueledger.app.core.designsystem.LedgerBillTableRow
+import com.blueledger.app.core.designsystem.LedgerOverviewCard
+import com.blueledger.app.core.designsystem.LedgerCenteredTopBar
+import com.blueledger.app.core.designsystem.LedgerDropdownArrow
+import com.blueledger.app.core.designsystem.LedgerFittedAmountText
+import com.blueledger.app.core.designsystem.LedgerNavigationRow
+import com.blueledger.app.core.designsystem.LedgerSegmentedControl
+import com.blueledger.app.core.designsystem.LedgerLineChart
+import com.blueledger.app.core.designsystem.LedgerEmptyState
+import com.blueledger.app.core.designsystem.LedgerBudgetEmptyIllustration
+import com.blueledger.app.core.designsystem.LedgerTopDropdown
+import com.blueledger.app.core.designsystem.LedgerChoiceRow
+import com.blueledger.app.core.designsystem.LedgerFlowDirectionIcon
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -10,6 +31,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,13 +43,13 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -42,6 +64,8 @@ import com.blueledger.app.app.ui.LocalHideAmounts
 import com.blueledger.app.core.contract.Clock
 import com.blueledger.app.core.contract.LedgerRepository
 import com.blueledger.app.core.designsystem.LedgerCategoryIcon
+import com.blueledger.app.core.designsystem.LedgerRankingRow
+import com.blueledger.app.core.designsystem.LedgerBarComparisonRow
 import com.blueledger.app.core.model.*
 import com.blueledger.app.core.money.Money
 import kotlinx.coroutines.launch
@@ -82,7 +106,7 @@ fun ReferenceHomeRoute(repository: LedgerRepository, clock: Clock, onDetail: (St
         item("header") {
             Column(Modifier.fillMaxWidth()) {
                 Column(Modifier.fillMaxWidth().background(T.Primary)) {
-                    ReferenceTitle("蓝记", brand = true) {
+                    LedgerCenteredTopBar("蓝记", brand = true) {
                         IconButton(onClick = { scope.launch { repository.setHideAmounts(!hidden) } }, modifier = Modifier.testTag("overview_hide_toggle")) {
                             Icon(if (LocalHideAmounts.current) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility, "显示或隐藏金额", tint = T.OnBrand)
                         }
@@ -102,7 +126,7 @@ fun ReferenceHomeRoute(repository: LedgerRepository, clock: Clock, onDetail: (St
                                         lineHeight = if (largeFont) 26.sp else 32.sp, maxLines = 1, color = T.OnBrand, modifier = Modifier.alignByBaseline())
                                     Text("月", fontSize = 14.sp, maxLines = 1, color = T.OnBrand, modifier = Modifier.alignByBaseline())
                                 }
-                                ReferenceDropdownArrow(Modifier.testTag("overview_month_arrow"), color = T.OnBrand)
+                                LedgerDropdownArrow(Modifier.testTag("overview_month_arrow"), color = T.OnBrand)
                             }
                         }
                         Box(Modifier.width(.5.dp).height(34.dp).background(T.OnBrandOutline))
@@ -133,7 +157,7 @@ fun ReferenceHomeRoute(repository: LedgerRepository, clock: Clock, onDetail: (St
             }
         }
         when {
-            state.error != null -> item { ReferenceRow(state.error, "重试", onClick = vm::retry) }
+            state.error != null -> item { LedgerNavigationRow(state.error, value = "重试", onClick = vm::retry) }
             !state.loaded -> item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
             state.totalCount == 0 -> item {
                 Column(Modifier.fillMaxWidth().padding(top = if (largeFont) 32.dp else 100.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -240,22 +264,32 @@ fun ReferenceChartRoute(repository: LedgerRepository, clock: Clock, initialMonth
     var menu by remember { mutableStateOf(false) }
     val total = if (type.isExpense) state.summary.expenseCent else state.summary.incomeCent
     val values = remember(state, range) { chartValues(state, range) }
-    Column(Modifier.fillMaxSize().background(T.Surface).testTag("statistics_screen")) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(T.Surface).testTag("statistics_screen")) {
+    val scale = (maxWidth.value / 361f).coerceAtMost(1.2f)
+    Column(Modifier.fillMaxSize()) {
+        LedgerTopDropdown(menu, { menu = false }, tag = "stats_type_menu", anchor = {
         Column(Modifier.background(T.Primary)) {
-            Box(Modifier.fillMaxWidth().height(T.BrandTitleHeight), contentAlignment = Alignment.Center) {
-                TextButton(onClick = { menu = true }) {
+            Box(Modifier.fillMaxWidth().height((43 * scale).dp), contentAlignment = Alignment.Center) {
+                TextButton(onClick = { menu = !menu }, modifier = Modifier.testTag("stats_type_selector")) {
                     Text(if (type.isExpense) "支出" else "收入", color = T.OnBrand, fontSize = 18.sp)
-                    ReferenceDropdownArrow(Modifier.padding(start = 6.dp), color = T.OnBrand)
-                }
-                DropdownMenu(menu, { menu = false }) {
-                    TransactionType.entries.forEach { choice -> DropdownMenuItem(text = { Text(if (choice.isExpense) "支出" else "收入") },
-                        onClick = { typeName = choice.name; menu = false }, modifier = Modifier.testTag("stats_type_${choice.name.lowercase()}")) }
+                    LedgerDropdownArrow(Modifier.padding(start = 6.dp), color = T.OnBrand)
                 }
             }
-            Box(Modifier.fillMaxWidth().padding(horizontal = T.SpaceL, vertical = T.SpaceXs)) {
-                ReferenceSegmentedControl(ChartPeriod.entries, period, { when (it) { ChartPeriod.WEEK -> "周"; ChartPeriod.MONTH -> "月"; ChartPeriod.YEAR -> "年" } }, {
+            Box(Modifier.fillMaxWidth().padding(horizontal = (10 * scale).dp).padding(bottom = (10 * scale).dp)) {
+                LedgerSegmentedControl(ChartPeriod.entries, period, { when (it) { ChartPeriod.WEEK -> "周"; ChartPeriod.MONTH -> "月"; ChartPeriod.YEAR -> "年" } }, {
                     periodName = it.name; fromText = ChartRange.forPeriod(it, clock.today(), advanced.monthStartDay).from.toString()
-                }, { "stats_tab_${it.name.lowercase()}" })
+                }, onBrand = true, tag = { "stats_tab_${it.name.lowercase()}" }, compactHeight = (28 * scale).dp)
+            }
+        }
+        }) {
+            listOf(TransactionType.EXPENSE, TransactionType.INCOME).forEach { choice ->
+                LedgerChoiceRow(if (choice.isExpense) "支出" else "收入", choice == type,
+                    tag = "stats_type_${choice.name.lowercase()}", height = (50 * scale).dp,
+                    textSizeSp = 14 * scale, horizontalPadding = (28 * scale).dp,
+                    dividerStart = (50 * scale).dp,
+                    leadingIcon = { LedgerFlowDirectionIcon(!choice.isExpense, Modifier.size((16 * scale).dp)) }) {
+                    typeName = choice.name; menu = false
+                }
             }
         }
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp)) {
@@ -272,72 +306,67 @@ fun ReferenceChartRoute(repository: LedgerRepository, clock: Clock, initialMonth
                         ChartPeriod.MONTH -> "${choice.from.monthValue}月"
                         ChartPeriod.YEAR -> "${choice.from.year}年"
                     }
-                    TextButton(onClick = { fromText = choice.from.toString() }, contentPadding = PaddingValues(T.SpaceXs), modifier = Modifier.width(76.dp).then(periodHeight).then(if (offset == 0) Modifier.testTag(if (period == ChartPeriod.YEAR) "stats_year_label" else "stats_month_label") else Modifier)) {
+                    TextButton(onClick = { fromText = choice.from.toString() }, contentPadding = PaddingValues(T.SpaceXs), modifier = Modifier.width(76.dp).then(periodHeight).semantics { selected = offset == 0 }.then(if (offset == 0) Modifier.testTag(if (period == ChartPeriod.YEAR) "stats_year_label" else "stats_month_label") else Modifier)) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(label, color = if (offset == 0) T.TextPrimary else T.TextSecondary)
+                            Text(label, fontSize = 12.sp, fontWeight = FontWeight.Normal, color = if (offset == 0) T.TextPrimary else T.TextSecondary)
                             if (offset == 0) Box(Modifier.width(35.dp).height(1.dp).background(T.Primary))
                         }
                     }
                 }
-                if (range.next().from <= clock.today()) TextButton(onClick = { fromText = range.next().from.toString() }, contentPadding = PaddingValues(T.SpaceXs), modifier = periodHeight) { Text("›", color = T.Primary) }
+                if (range.next().from <= clock.today()) TextButton(onClick = { fromText = range.next().from.toString() }, contentPadding = PaddingValues(T.SpaceXs), modifier = periodHeight.testTag("stats_next_period")) { Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, "下一周期", tint = T.Primary) }
             }
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 24.dp)) {
-            if (state.error != null) item { ReferenceRow(state.error, "重试", onClick = vm::retry) }
+        LazyColumn(Modifier.weight(1f)) {
+            if (state.error != null) item { LedgerNavigationRow(state.error, value = "重试", onClick = vm::retry) }
             if (!state.loaded || state.filter.from != range.from || state.filter.type != type) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
             item("trend") {
                 val hidden = LocalHideAmounts.current
-                Column(Modifier.padding(horizontal = T.SpaceL, vertical = T.SpaceS)) {
+                Column(Modifier.fillMaxWidth().height((189 * scale).dp).padding(horizontal = (10 * scale).dp).padding(top = (10 * scale).dp)) {
                     Column(Modifier.fillMaxWidth().testTag("stats_summary_card").semantics(mergeDescendants = true) {}) {
-                        Text("总${if (type.isExpense) "支出" else "收入"}：${if (hidden) "••••" else referenceAmountText(total)}", fontSize = 15.sp, color = T.TextPrimary)
-                        Text("平均值：${if (hidden) "••••" else referenceAmountText(averageDaily(total, range, clock.today()) ?: 0)}",
-                            fontSize = 15.sp, color = T.TextPrimary, modifier = Modifier.padding(top = 6.dp))
+                        Text("总${if (type.isExpense) "支出" else "收入"}：${if (hidden) "••••" else Money.format(total).replace(",", "")}", fontSize = (12 * scale).sp, lineHeight = (16 * scale).sp, color = T.TextSecondary)
+                        Text("平均值：${if (hidden) "••••" else Money.format(averageDaily(total, range, clock.today()) ?: 0).replace(",", "")}",
+                            fontSize = (12 * scale).sp, lineHeight = (16 * scale).sp, color = T.TextSecondary, modifier = Modifier.padding(top = (6 * scale).dp))
                     }
-                    Spacer(Modifier.height(T.SpaceS))
                     val labels = when (period) {
                         ChartPeriod.YEAR -> (1..12).map { "${it}月" }
                         ChartPeriod.MONTH -> values.indices.map { range.from.plusDays(it.toLong()).dayOfMonth.toString().padStart(2, '0') }
-                        ChartPeriod.WEEK -> values.indices.map { "${range.from.plusDays(it.toLong()).dayOfMonth}日" }
+                        ChartPeriod.WEEK -> values.indices.map { range.from.plusDays(it.toLong()).format(java.time.format.DateTimeFormatter.ofPattern("MM-dd")) }
                     }
                     val ledgerMonth = LedgerPeriods.monthOf(clock.today(), advanced.monthStartDay)
                     val future = if (period == ChartPeriod.YEAR) if (range.from.year == ledgerMonth.year) ledgerMonth.monthValue else if (range.from.year > ledgerMonth.year) 0 else values.size
                         else (java.time.temporal.ChronoUnit.DAYS.between(range.from, clock.today()) + 1).toInt().coerceIn(0, values.size)
-                    ReferenceLineChart(values, labels, futureFrom = future)
+                    LedgerLineChart(values, labels, futureFrom = future, height = (114 * scale).dp, compact = true,
+                        empty = state.loaded && state.rows.isEmpty(), maxVisibleLabels = if (period == ChartPeriod.YEAR) 12 else 7,
+                        formatAmount = { Money.format(it).replace(",", "") })
                 }
             }
-            item { HorizontalDivider(color = T.Border, thickness = 1.dp); Text("${if (type.isExpense) "支出" else "收入"}排行榜", fontSize = 18.sp, color = T.TextPrimary, modifier = Modifier.padding(horizontal = T.SpaceL, vertical = T.SpaceS)) }
+            item { HorizontalDivider(color = T.Border, thickness = 1.dp); Text("${if (type.isExpense) "支出" else "收入"}排行榜", fontSize = (16 * scale).sp, fontWeight = FontWeight.Bold, color = T.TextPrimary, modifier = Modifier.testTag("stats_ranking_title").padding(horizontal = (16 * scale).dp, vertical = (12 * scale).dp)) }
             items(state.categories, key = { it.id }) { category ->
                 ReferenceRanking(category, state.categories.firstOrNull()?.cent ?: 0) { onCategory(range, type, category.id) }
             }
-            if (state.loaded && state.categories.isEmpty()) item { Text("暂无${if (type.isExpense) "支出" else "收入"}记录", color = T.TextSecondary, modifier = Modifier.padding(20.dp)) }
+            if (state.loaded && state.categories.isEmpty()) item {
+                LedgerEmptyState("暂无数据", contentPadding = (18 * scale).dp, subtle = true,
+                    testTag = "stats_empty", contentScale = scale,
+                    illustration = { LedgerBudgetEmptyIllustration(scale) })
+            }
         }
+    }
     }
 }
 
 @Composable
 internal fun ReferenceRanking(category: ReferenceCategory, largest: Long, click: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = click).testTag("stats_rank_${category.id}").padding(horizontal = T.SpaceL, vertical = T.ReferenceRankingVertical), verticalAlignment = Alignment.CenterVertically) {
+    LedgerRankingRow(category.name, category.cent, category.permille / 1000.0,
+        modifier = Modifier.testTag("stats_rank_${category.id}").padding(horizontal = T.SpaceL, vertical = T.ReferenceRankingVertical), onClick = click) {
         LedgerCategoryIcon(category.icon, false, diameter = T.ReferenceListIcon)
-        Column(Modifier.weight(1f).padding(start = 14.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(category.name, fontSize = 15.sp, color = T.TextPrimary)
-                Text("  ${Money.formatPermille(category.permille)}", color = T.TextSecondary, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                Text(if (LocalHideAmounts.current) "••••" else referenceAmountText(category.cent), fontSize = 15.sp, color = T.TextPrimary, maxLines = 1)
-            }
-            Spacer(Modifier.height(9.dp))
-            Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(T.Background)) {
-                Box(Modifier.fillMaxWidth(if (largest <= 0) 0f else (category.cent.toDouble() / largest).toFloat().coerceIn(0f, 1f)).height(4.dp).clip(CircleShape).background(T.Primary))
-            }
-        }
     }
 }
-
 @Composable
 fun ReferenceCategoryBillsRoute(repository: LedgerRepository, from: LocalDate, to: LocalDate, type: TransactionType, categoryId: String, onBack: () -> Unit, onDetail: (String) -> Unit) {
     val (state, vm) = ledgerState(repository, "reference.categoryBills", TransactionFilter(from = from, to = to, type = type, categoryId = categoryId, limit = Int.MAX_VALUE))
     Column(Modifier.fillMaxSize().background(T.Surface).navigationBarsPadding()) {
-        ReferenceTitle(state.rows.firstOrNull()?.categoryName ?: "分类明细", onBack, blue = true)
-        Row(Modifier.fillMaxWidth().padding(20.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("${state.summary.count}笔"); ReferenceMoney(state.summary.incomeCent + state.summary.expenseCent, large = true) }
-        LazyColumn { if (state.error != null) item { ReferenceRow(state.error, "重试", onClick = vm::retry) }
+        LedgerCenteredTopBar(state.rows.firstOrNull()?.categoryName ?: "分类明细", onBack, blue = true)
+        Row(Modifier.fillMaxWidth().padding(20.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("${state.summary.count}笔"); LedgerFittedAmountText(state.summary.incomeCent + state.summary.expenseCent, large = true) }
+        LazyColumn { if (state.error != null) item { LedgerNavigationRow(state.error, value = "重试", onClick = vm::retry) }
             items(state.rows, key = { it.id }) { row -> ReferenceTransaction(row, { onDetail(row.id) }) } }
     }
 }
@@ -353,40 +382,52 @@ fun ReferenceBillsRoute(repository: LedgerRepository, clock: Clock, onBack: (() 
     LaunchedEffect(advanced.monthStartDay) { if (observedMonthStartDay != advanced.monthStartDay) { selectedYear = currentLedgerMonth.year; observedMonthStartDay = advanced.monthStartDay } }
     var yearPicker by remember { mutableStateOf(false) }
     val (state, vm) = ledgerState(repository, "reference.bills", TransactionFilter(limit = Int.MAX_VALUE))
-    val yearRows = remember(state, selectedYear) { (12 downTo 1).map { n -> state.months.firstOrNull { it.month == YearMonth.of(selectedYear, n) } ?: ReferenceMonth(YearMonth.of(selectedYear, n), 0, 0) } }
+    val yearRows = remember(state.months, selectedYear, currentLedgerMonth) {
+        val recorded = state.months.filter { it.month.year == selectedYear }
+        (recorded + if (selectedYear == currentLedgerMonth.year && recorded.none { it.month == currentLedgerMonth }) listOf(ReferenceMonth(currentLedgerMonth, 0, 0)) else emptyList()).sortedByDescending { it.month }
+    }
     val sum = remember(state, selectedYear, years) { if (years) state.summary else MoneySummary(yearRows.sumOf { it.income }, yearRows.sumOf { it.expense }, 0) }
     Column(Modifier.fillMaxSize().background(T.Surface).then(if (onBack != null) Modifier.navigationBarsPadding() else Modifier).testTag("transactions_screen")) {
-        BillToolbar(years, selectedYear, onBack, { yearPicker = true }, { years = it })
-        BillSummaryCard(sum, years)
-        Spacer(Modifier.height(24.dp))
+        BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
+        val scale = (maxWidth.value / 361f).coerceAtMost(1.2f)
+        Column(Modifier.fillMaxSize()) {
+        LedgerBillToolbar(if (years) "全部年份" else "${selectedYear}年", years, { yearPicker = true }, { years = it }, scale, onBack)
+        Box(Modifier.padding(horizontal = (15 * scale).dp).padding(top = (19 * scale).dp)) {
+            LedgerOverviewCard(sum.balanceCent, sum.incomeCent, sum.expenseCent, scale, if (years) "总结余" else "年结余", if (years) "总收入" else "年收入", if (years) "总支出" else "年支出", "bills_summary_card", "bills_balance", "bills_income")
+        }
+        Spacer(Modifier.height((30 * scale).dp))
         val fontScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val tableWidth = maxOf(maxWidth, 320.dp * fontScale)
             Column(Modifier.fillMaxSize().horizontalScroll(rememberScrollState())) {
                 Column(Modifier.width(tableWidth).fillMaxHeight()) {
-                    Row(Modifier.fillMaxWidth().heightIn(min = 38.dp).padding(horizontal = 24.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(if (years) "年份" else "月份", Modifier.weight(.9f), fontSize = 12.sp, color = T.TextSecondary)
-                        listOf(if (years) "年收入" else "月收入", if (years) "年支出" else "月支出", if (years) "年结余" else "月结余").forEach {
-                            Text(it, Modifier.weight(1f), fontSize = 12.sp, color = T.TextSecondary, textAlign = TextAlign.Start)
+                    Row(Modifier.fillMaxWidth().height((30 * scale).dp).padding(horizontal = (24 * scale).dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (years) "年份" else "月份", Modifier.weight(if (years) .96f else 1f), fontSize = (12 * scale).sp, color = T.TextSecondary)
+                        listOf(if (years) "年收入" else "月收入", if (years) "年支出" else "月支出", if (years) "年结余" else "月结余").forEachIndexed { index, label ->
+                            Text(label, Modifier.weight(if (years) if (index == 2) .82f else 1.11f else 1f), fontSize = (12 * scale).sp, color = T.TextSecondary, textAlign = TextAlign.Start)
                         }
-                        Spacer(Modifier.width(16.dp))
+                        if (!years) Spacer(Modifier.width((16 * scale).dp))
                     }
                     HorizontalDivider(color = T.Border.copy(alpha = .5f), thickness = .5.dp)
                     LazyColumn(Modifier.weight(1f).testTag("bills_table")) {
-                        if (state.error != null) item { ReferenceRow(state.error, "重试", onClick = vm::retry) }
+                        if (state.error != null) item { LedgerNavigationRow(state.error, value = "重试", onClick = vm::retry) }
                         if (years) {
-                            val minimum = state.months.minOfOrNull { it.month.year } ?: currentLedgerMonth.year
-                            items((currentLedgerMonth.year downTo minimum).toList(), key = { it }) { year ->
-                                val rows = state.months.filter { it.month.year == year }
-                                BillTableRow("${year}年", rows.sumOf { it.income }, rows.sumOf { it.expense }) { selectedYear = year; years = false }
+                            val minimum = state.rows.minOfOrNull { it.occurredOn.year } ?: clock.today().year
+                            items((clock.today().year downTo minimum).toList(), key = { it }) { year ->
+                                val rows = state.rows.filter { it.occurredOn.year == year }
+                                val income = rows.filter { it.type.isIncome }.sumOf { it.amountCent }
+                                val expense = rows.filter { it.type.isExpense }.sumOf { it.amountCent }
+                                LedgerBillTableRow("${year}年", listOf(income, expense, income - expense), scale, annual = true) { selectedYear = year; years = false }
                             }
                         } else items(yearRows.filter { it.month <= currentLedgerMonth }, key = { it.month.toString() }) { row ->
-                            BillTableRow("${row.month.monthValue}月", row.income, row.expense) { onMonth(row.month) }
+                            LedgerBillTableRow("${row.month.monthValue}月", listOf(row.income, row.expense, row.income - row.expense), scale) { onMonth(row.month) }
                         }
                     }
                 }
             }
         }
+    }
+    }
     }
     if (yearPicker) AlertDialog(onDismissRequest = { yearPicker = false }, title = { Text("选择年份") }, text = {
         Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
@@ -395,18 +436,6 @@ fun ReferenceBillsRoute(repository: LedgerRepository, clock: Clock, onBack: (() 
             }
         }
     }, confirmButton = { TextButton(onClick = { yearPicker = false }) { Text("取消") } })
-}
-
-@Composable
-private fun BillTableRow(label: String, income: Long, expense: Long, click: () -> Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClick = click).padding(horizontal = 24.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, Modifier.weight(.9f), fontSize = 15.sp, color = T.TextPrimary)
-        listOf(income, expense, income - expense).forEach { cent ->
-            Text(billAmount(cent), Modifier.weight(1f), fontSize = 13.sp, color = T.TextPrimary, textAlign = TextAlign.Start, maxLines = 1)
-        }
-        Icon(Icons.Outlined.ChevronRight, "查看${label}账单", Modifier.size(16.dp), tint = T.TextSecondary.copy(alpha = .45f))
-    }
-    HorizontalDivider(Modifier.padding(horizontal = 16.dp), thickness = .5.dp, color = T.Border.copy(alpha = .5f))
 }
 
 @Composable
@@ -421,130 +450,65 @@ private fun HomeSummaryMoney(cent: Long, modifier: Modifier) {
 }
 
 @Composable
-private fun BillToolbar(years: Boolean, selectedYear: Int, onBack: (() -> Unit)?, pickYear: () -> Unit, select: (Boolean) -> Unit) {
-    val largeFont = LocalDensity.current.fontScale > 1.4f
-    val yearSelector: @Composable () -> Unit = {
-        if (onBack != null) IconButton(onClick = onBack, modifier = Modifier.size(40.dp).testTag("btn_back")) {
-            Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回", tint = T.TextPrimary)
-        }
-        Row(Modifier.heightIn(min = 48.dp).clickable(enabled = !years, onClick = pickYear)
-            .testTag("bills_year_selector").padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(if (years) "全部年份" else "${selectedYear}年", fontSize = 15.sp, maxLines = 1, color = T.TextPrimary)
-            if (!years) ReferenceDropdownArrow(Modifier.testTag("bills_year_arrow"))
-        }
-    }
-    if (largeFont) Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { yearSelector() }
-        BillPeriodSwitch(years, select, Modifier.fillMaxWidth().padding(bottom = 8.dp))
-    } else Row(Modifier.fillMaxWidth().heightIn(min = T.ReferenceBillToolbarHeight).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        yearSelector()
-        Spacer(Modifier.width(16.dp))
-        BillPeriodSwitch(years, select, Modifier.width(148.dp))
-    }
-}
-
-@Composable
-private fun BillPeriodSwitch(years: Boolean, select: (Boolean) -> Unit, modifier: Modifier = Modifier) {
-    Row(modifier.clip(RoundedCornerShape(8.dp)).border(1.dp, T.TextPrimary, RoundedCornerShape(8.dp))) {
-        listOf(false, true).forEach { annual ->
-            Box(Modifier.weight(1f).heightIn(min = 40.dp).background(if (annual == years) T.TextPrimary else T.Surface)
-                .selectable(selected = annual == years, role = Role.Tab, onClick = { select(annual) })
-                .testTag(if (annual) "bills_tab_year" else "bills_tab_month"), contentAlignment = Alignment.Center) {
-                Text(if (annual) "年账单" else "月账单", fontSize = 13.sp, maxLines = 1, color = if (annual == years) Color.White else T.TextPrimary,
-                    modifier = Modifier.padding(vertical = 8.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun BillSummaryCard(sum: MoneySummary, years: Boolean) {
-    val largeFont = LocalDensity.current.fontScale > 1.4f
-    Box(Modifier.padding(horizontal = T.SpaceL).padding(top = T.SpaceXl, bottom = T.SpaceM).fillMaxWidth().clip(RoundedCornerShape(T.RadiusCard))
-        .background(T.Primary).testTag("bills_summary_card")) {
-        Box(Modifier.matchParentSize().padding(end = 12.dp), contentAlignment = Alignment.CenterEnd) {
-            Icon(Icons.Outlined.CurrencyYen, null, Modifier.size(116.dp), tint = T.OnBrandSubtle)
-        }
-        Column(Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = T.SpaceM)) {
-            Text(if (years) "累计结余" else "年结余", fontSize = 12.sp, lineHeight = 18.sp, color = T.OnBrand)
-            Text(billAmount(sum.balanceCent), fontSize = 28.sp, lineHeight = 36.sp, fontWeight = FontWeight.Medium,
-                maxLines = 1, modifier = Modifier.padding(top = 6.dp).testTag("bills_balance"), color = T.OnBrand)
-            if (largeFont) {
-                Column(Modifier.padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    BillSummaryAmount(if (years) "总收入" else "年收入", sum.incomeCent)
-                    BillSummaryAmount(if (years) "总支出" else "年支出", sum.expenseCent)
-                }
-            } else Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                BillSummaryAmount(if (years) "总收入" else "年收入", sum.incomeCent)
-                BillSummaryAmount(if (years) "总支出" else "年支出", sum.expenseCent)
-            }
-        }
-    }
-}
-
-@Composable
-private fun BillSummaryAmount(label: String, cent: Long) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(label, fontSize = 11.sp, color = T.OnBrand, modifier = Modifier.alignByBaseline())
-        Text(billAmount(cent), fontSize = 14.sp, fontWeight = FontWeight.Medium, color = T.OnBrand, maxLines = 1, modifier = Modifier.alignByBaseline())
-    }
-}
-
-@Composable
 fun ReferenceMonthReportRoute(repository: LedgerRepository, clock: Clock, month: YearMonth, onBack: () -> Unit, onDetail: (String) -> Unit, onAll: (YearMonth) -> Unit, onCategory: (YearMonth, String) -> Unit = { selected, _ -> onAll(selected) }) {
     val (state, vm) = ledgerState(repository, "reference.monthReport", TransactionFilter(yearMonth = month, limit = Int.MAX_VALUE))
-    val (previous, _) = ledgerState(repository, "reference.previousReport", TransactionFilter(yearMonth = month.minusMonths(1), limit = Int.MAX_VALUE))
-    val context = LocalContext.current
-    val hidden = LocalHideAmounts.current
-    val categories = state.expenseCategories
-    val shareScope = rememberCoroutineScope()
-    var sharing by remember { mutableStateOf(false) }
-    var shareError by remember { mutableStateOf<String?>(null) }
-    LazyColumn(Modifier.fillMaxSize().background(T.Surface).navigationBarsPadding(), contentPadding = PaddingValues(bottom = 24.dp)) {
-        item { ReferenceTitle("${month.monthValue}月账单", onBack, blue = true) }
-        item {
-            Column(Modifier.fillMaxWidth().background(T.PrimarySoft).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("${month.year}年${month.monthValue}月", color = T.TextSecondary, fontSize = 14.sp)
-                Text("本月结余", Modifier.padding(top = 20.dp), fontSize = 14.sp)
-                ReferenceMoney(state.summary.balanceCent, large = true)
-                Text("上月结余 ${if (hidden) "••••" else Money.format(previous.summary.balanceCent)}", color = T.TextSecondary, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
-                Text("记录了 ${state.days.size} 天 · ${state.totalCount} 笔账单", Modifier.padding(top = 20.dp), fontSize = 13.sp)
+    val (previous, previousVm) = ledgerState(repository, "reference.previousReport", TransactionFilter(yearMonth = month.minusMonths(1), limit = Int.MAX_VALUE))
+    val longest = remember(state.days) { monthlyLongestStreak(state.days.map { it.date }) }
+    BoxWithConstraints(Modifier.fillMaxSize().background(T.Background).navigationBarsPadding().testTag("month_report_screen")) {
+        val scale = (maxWidth.value / 361f).coerceAtMost(1.2f)
+        LazyColumn(Modifier.fillMaxSize().testTag("month_report_list"), contentPadding = PaddingValues(bottom = (20 * scale).dp)) {
+            item { LedgerMonthlyReportHeader(month.year, month.monthValue, scale, onBack) }
+            if (!state.loaded || !previous.loaded) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+            val error = state.error ?: previous.error
+            if (error != null) item { LedgerNavigationRow(error, "重试", onClick = { vm.retry(); previousVm.retry() }) }
+            if (state.loaded && previous.loaded) {
+                item { Box(Modifier.padding(horizontal = (10 * scale).dp)) {
+                    LedgerMonthlyBalanceCard(state.summary.balanceCent, previous.summary.balanceCent, state.summary.incomeCent, state.summary.expenseCent, scale)
+                } }
+                item { Box(Modifier.padding(horizontal = (10 * scale).dp).padding(top = (10 * scale).dp)) {
+                    LedgerMetricsCard("记账成就", listOf(
+                        LedgerMetric("最长连续", longest, "天", "month_report_streak"),
+                        LedgerMetric("记账天数", state.days.size, "天", "month_report_days"),
+                        LedgerMetric("账单笔数", state.totalCount, "笔", "month_report_count")
+                    ), scale)
+                } }
+                item { Box(Modifier.padding(horizontal = (10 * scale).dp).padding(top = (10 * scale).dp)) {
+                    LedgerReportSection("支出分类", scale) {
+                        if (state.expenseCategories.isEmpty()) Text("暂无支出记录", Modifier.fillMaxWidth().padding(vertical = (24 * scale).dp),
+                            color = T.TextSecondary, fontSize = (13 * scale).sp, textAlign = TextAlign.Center)
+                        else {
+                            ReferenceCategoryRing(state.expenseCategories)
+                            state.expenseCategories.forEach { category -> ReferenceRanking(category, state.expenseCategories.firstOrNull()?.cent ?: 0) { onCategory(month, category.id) } }
+                        }
+                    }
+                } }
+                item { Box(Modifier.padding(horizontal = (10 * scale).dp).padding(top = (10 * scale).dp)) {
+                    LedgerReportSection("收支明细", scale) {
+                        if (state.rows.isEmpty()) Text("暂无账单", Modifier.fillMaxWidth().padding(vertical = (24 * scale).dp),
+                            color = T.TextSecondary, fontSize = (13 * scale).sp, textAlign = TextAlign.Center)
+                        else {
+                            state.rows.take(3).forEach { row ->
+                                LedgerTransactionRow(row.categoryName, row.categoryIconKey, row.type, row.amountCent,
+                                    row.note.ifBlank { row.categoryName }, "${row.occurredOn.monthValue}月${row.occurredOn.dayOfMonth}日",
+                                    onClick = { onDetail(row.id) }, compactScale = scale, testTag = "month_report_row_${row.id}")
+                            }
+                            LedgerActionButton("查看全部账单", { onAll(month) }, Modifier.fillMaxWidth().testTag("month_report_all"), style = LedgerActionStyle.SECONDARY)
+                        }
+                    }
+                } }
             }
-        }
-        if (state.error != null) item { ReferenceRow(state.error, "重试", onClick = vm::retry) }
-        item {
-            Text("收支对比", fontSize = 18.sp, modifier = Modifier.padding(20.dp))
-            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column { Text("收入", color = T.TextSecondary); ReferenceMoney(state.summary.incomeCent, large = true) }
-                Column { Text("支出", color = T.TextSecondary); ReferenceMoney(state.summary.expenseCent, large = true) }
-            }
-            val largest = maxOf(state.summary.incomeCent, state.summary.expenseCent, previous.summary.incomeCent, previous.summary.expenseCent, 1L)
-            listOf("本月收入" to state.summary.incomeCent, "上月收入" to previous.summary.incomeCent, "本月支出" to state.summary.expenseCent, "上月支出" to previous.summary.expenseCent).forEach { (label, amount) ->
-                Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(label, fontSize = 12.sp, color = T.TextSecondary, modifier = Modifier.width(64.dp))
-                    Box(Modifier.weight(1f).height(10.dp).background(T.Background)) { Box(Modifier.fillMaxWidth((amount.toDouble() / largest).toFloat()).height(10.dp).background(if (label.startsWith("本月")) T.Primary else T.Border)) }
-                }
-            }
-        }
-        item { HorizontalDivider(color = T.Border, thickness = 6.dp); Text("支出分类", fontSize = 18.sp, modifier = Modifier.padding(20.dp)) }
-        item { ReferenceCategoryRing(categories) }
-        items(categories, key = { it.id }) { category -> ReferenceRanking(category, categories.firstOrNull()?.cent ?: 0) { onCategory(month, category.id) } }
-        item { HorizontalDivider(color = T.Border, thickness = 6.dp); Text("支出排行榜", fontSize = 18.sp, modifier = Modifier.padding(20.dp)) }
-        items(state.expenseRanking, key = { "ranking_${it.id}" }) { row -> ReferenceTransaction(row, { onDetail(row.id) }) }
-        item { TextButton(onClick = { onAll(month) }, modifier = Modifier.fillMaxWidth()) { Text("查看更多") } }
-        item { TextButton(enabled = state.loaded && !sharing, onClick = {
-            sharing = true; shareError = null
-            shareScope.launch {
-                try {
-                    val intent = monthlyReportShareIntent(context, month, state, previous, hidden)
-                    context.startActivity(Intent.createChooser(intent, "分享账单"))
-                } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-                catch (_: Exception) { shareError = "生成分享图片失败，请重试" }
-                finally { sharing = false }
-            }
-        }, modifier = Modifier.fillMaxWidth().testTag("report_share")) { Text(if (sharing) "生成图片中…" else "分享账单") }
-            shareError?.let { Text(it, color = T.Risk, modifier = Modifier.padding(20.dp)) }
         }
     }
+}
+
+internal fun monthlyLongestStreak(dates: List<LocalDate>): Int {
+    var previous: LocalDate? = null
+    var current = 0
+    var longest = 0
+    dates.distinct().sorted().forEach { date ->
+        current = if (previous?.plusDays(1) == date) current + 1 else 1
+        longest = maxOf(longest, current)
+        previous = date
+    }
+    return longest
 }

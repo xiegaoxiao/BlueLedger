@@ -19,7 +19,7 @@ object BackupLimits {
     const val PRODUCT_ID: String = "blueledger"
 
     /** 备份文件格式版本。与 Room 数据库 schema 版本**独立**管理。 */
-    const val BACKUP_SCHEMA_VERSION: Int = 3
+    const val BACKUP_SCHEMA_VERSION: Int = 4
 
     /** 单个备份文件最大 32 MiB。 */
     const val MAX_BYTES: Long = 32L * 1024L * 1024L
@@ -98,6 +98,7 @@ data class BackupAccountDto(
     val isArchived: Boolean = false,
     val note: String = "",
     val openingHistory: String = "",
+    val location: String? = null,
 )
 
 @Serializable

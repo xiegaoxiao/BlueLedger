@@ -24,6 +24,7 @@ interface AccountDao {
                a.isArchived AS isArchived,
                a.note AS note,
                a.openingHistory AS openingHistory,
+               a.location AS location,
                a.openingBalanceCent + COALESCE((
                    SELECT SUM(CASE WHEN t.type = 'INCOME' THEN t.amountCent ELSE -t.amountCent END)
                    FROM transactions t
@@ -68,12 +69,13 @@ interface AccountDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertAll(entities: List<AccountEntity>)
 
-    @Query("UPDATE accounts SET name = :name, nameKey = :nameKey, kind = :kind, openingBalanceCent = :openingBalanceCent, updatedAtEpochMillis = :updatedAtEpochMillis WHERE id = :id")
+    @Query("UPDATE accounts SET name = :name, nameKey = :nameKey, kind = :kind, openingBalanceCent = :openingBalanceCent, updatedAtEpochMillis = :updatedAtEpochMillis, location = :location WHERE id = :id")
     suspend fun updateDetails(
         id: String,
         name: String,
         nameKey: String,
         kind: String,
+        location: String,
         openingBalanceCent: Long,
         updatedAtEpochMillis: Long,
     ): Int
@@ -83,6 +85,9 @@ interface AccountDao {
 
     @Query("UPDATE accounts SET isArchived = :archived, updatedAtEpochMillis = :updatedAtEpochMillis WHERE id = :id")
     suspend fun setArchived(id: String, archived: Boolean, updatedAtEpochMillis: Long): Int
+
+    @Query("SELECT openingBalanceCent + COALESCE((SELECT SUM(CASE WHEN type = 'INCOME' THEN amountCent ELSE -amountCent END) FROM transactions WHERE accountId = :id AND deletedAtEpochMillis IS NULL),0) FROM accounts WHERE id = :id")
+    suspend fun currentBalance(id: String): Long?
 
     @Query("DELETE FROM accounts")
     suspend fun deleteAll()

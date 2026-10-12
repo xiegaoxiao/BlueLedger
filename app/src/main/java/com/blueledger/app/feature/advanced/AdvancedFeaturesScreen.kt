@@ -1,5 +1,7 @@
 package com.blueledger.app.feature.advanced
 
+import com.blueledger.app.core.designsystem.LedgerCenteredTopBar
+import com.blueledger.app.core.designsystem.LedgerNavigationRow
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -24,8 +26,6 @@ import com.blueledger.app.core.contract.Clock
 import com.blueledger.app.core.contract.LedgerRepository
 import com.blueledger.app.core.model.*
 import com.blueledger.app.core.money.Money
-import com.blueledger.app.feature.reference.ReferenceTitle
-import com.blueledger.app.feature.reference.ReferenceRow
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.YearMonth
@@ -37,7 +37,7 @@ private fun frequencyName(value: RecurrenceFrequency) = when (value) {
 }
 
 @Composable
-fun AdvancedFeaturesRoute(repository: LedgerRepository, clock: Clock, onBack: () -> Unit, onDetail: (String) -> Unit) {
+fun AdvancedFeaturesRoute(repository: LedgerRepository, clock: Clock, onBack: () -> Unit, onDetail: (String) -> Unit, onBudget: (() -> Unit)? = null) {
     val advancedFlow = remember(repository) { repository.observeAdvancedSettings() }
     val advanced by advancedFlow.collectAsStateWithLifecycle(AdvancedLedgerSettings())
     val expenseFlow = remember(repository) { repository.observeCategories(TransactionType.EXPENSE, true) }
@@ -113,14 +113,17 @@ fun AdvancedFeaturesRoute(repository: LedgerRepository, clock: Clock, onBack: ()
         return
     }
     Column(Modifier.fillMaxSize().background(T.Background).navigationBarsPadding().testTag("advanced_screen")) {
-        ReferenceTitle(selectedTag?.let { id -> advanced.tags.firstOrNull { it.id == id }?.name } ?: page, ::back, blue = true)
+        LedgerCenteredTopBar(selectedTag?.let { id -> advanced.tags.firstOrNull { it.id == id }?.name } ?: page, ::back, blue = true)
         if (message != null) Text(message!!, color = T.Risk, modifier = Modifier.padding(16.dp).testTag("advanced_error"))
         LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("advanced_list")) {
             when (page) {
                 "高级功能" -> {
                     item { Text("功能免费使用，数据保存在本机。", color = T.TextSecondary, modifier = Modifier.padding(20.dp)) }
                     items(listOf("分类预算", "自动记账", "记账标签", "记账日历", "月起始日", "回收站")) { title ->
-                        ReferenceRow(title, tag = "advanced_$title") { page = title; selectedTag = null; monthText = (if (title == "记账日历") clock.currentYearMonth() else LedgerPeriods.monthOf(clock.today(), advanced.monthStartDay)).toString() }
+                        LedgerNavigationRow(title, tag = "advanced_$title") {
+                            if (title == "分类预算" && onBudget != null) onBudget()
+                            else { page = title; selectedTag = null; monthText = (if (title == "记账日历") clock.currentYearMonth() else LedgerPeriods.monthOf(clock.today(), advanced.monthStartDay)).toString() }
+                        }
                     }
                 }
                 "分类预算" -> {
@@ -129,17 +132,17 @@ fun AdvancedFeaturesRoute(repository: LedgerRepository, clock: Clock, onBack: ()
                     items(expenses, key = { it.id }) { category ->
                         val used = rows.items.filter { it.type.isExpense && it.transaction.categoryId == category.id }.sumOf { it.amountCent }
                         val budget = advanced.categoryBudgets.firstOrNull { it.categoryId == category.id }
-                        ReferenceRow(category.name, budget?.let { "已用 ${amount(used, hidden)} / ${amount(it.amountCent, hidden)}" } ?: "未设置", subtitle = budget?.let { "${if (used > it.amountCent) "超出" else "剩余"} ${amount(kotlin.math.abs(it.amountCent - used), hidden)}" } ?: "点击设置每月分类预算", tag = "category_budget_${category.id}", enabled = !busy) { budgetCategory = category }
+                        LedgerNavigationRow(category.name, budget?.let { "已用 ${amount(used, hidden)} / ${amount(it.amountCent, hidden)}" } ?: "未设置", subtitle = budget?.let { "${if (used > it.amountCent) "超出" else "剩余"} ${amount(kotlin.math.abs(it.amountCent - used), hidden)}" } ?: "点击设置每月分类预算", tag = "category_budget_${category.id}", enabled = !busy) { budgetCategory = category }
                     }
                 }
                 "月起始日" -> {
                     item { Text("选择每个记账月的开始日期。短月自动使用月末；只改变统计区间，不修改账单发生日期。", Modifier.padding(16.dp), color = T.TextSecondary) }
                     items((1..31).toList()) { day ->
-                        ReferenceRow("每月${day}日", if (day == advanced.monthStartDay) "✓" else "", tag = "month_start_$day", enabled = !busy) { mutate { it.copy(monthStartDay = day) } }
+                        LedgerNavigationRow("每月${day}日", if (day == advanced.monthStartDay) "✓" else "", tag = "month_start_$day", enabled = !busy) { mutate { it.copy(monthStartDay = day) } }
                     }
                 }
                 "自动记账" -> {
-                    item { ReferenceRow("＋ 添加周期规则", tag = "recurring_add", enabled = !busy) { newRecurring = true } }
+                    item { LedgerNavigationRow("＋ 添加周期规则", tag = "recurring_add", enabled = !busy) { newRecurring = true } }
                     item { Text("到期自动生成账单，应用启动时补记；省电限制可能延后后台执行。规则暂停后不再生成。", Modifier.padding(16.dp), color = T.TextSecondary) }
                     items(advanced.recurringRules, key = { it.id }) { rule ->
                         Column(Modifier.fillMaxWidth().background(T.Surface).padding(16.dp)) {
@@ -158,17 +161,17 @@ fun AdvancedFeaturesRoute(repository: LedgerRepository, clock: Clock, onBack: ()
                 }
                 "记账标签" -> {
                     if (selectedTag == null) {
-                        item { ReferenceRow("＋ 添加标签", tag = "tag_add", enabled = !busy) { newTag = true } }
+                        item { LedgerNavigationRow("＋ 添加标签", tag = "tag_add", enabled = !busy) { newTag = true } }
                         items(advanced.tags, key = { it.id }) { tag ->
                             Row(Modifier.fillMaxWidth().background(T.Surface), verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.weight(1f)) { ReferenceRow(tag.name, "${rows.items.count { tag.id in advanced.transactionTags[it.id].orEmpty() }} 笔", tag = "tag_${tag.id}") { selectedTag = tag.id } }
+                                Box(Modifier.weight(1f)) { LedgerNavigationRow(tag.name, value = "${rows.items.count { tag.id in advanced.transactionTags[it.id].orEmpty() }} 笔", tag = "tag_${tag.id}") { selectedTag = tag.id } }
                                 TextButton(enabled = !busy, onClick = { editingTag = tag }) { Text("改名") }
                                 TextButton(enabled = !busy, onClick = { deleteTag = tag }) { Text("删除") }
                             }
                         }
                         if (advanced.tags.isEmpty()) item { Text("暂无标签", Modifier.padding(20.dp)) }
                     } else {
-                        item { ReferenceRow(if (assignTags) "完成关联" else "关联账单", tag = "tag_assign") { assignTags = !assignTags } }
+                        item { LedgerNavigationRow(if (assignTags) "完成关联" else "关联账单", tag = "tag_assign") { assignTags = !assignTags } }
                         val visible = rows.items.filter { assignTags || selectedTag in advanced.transactionTags[it.id].orEmpty() }
                         item { val income = visible.filter { it.type.isIncome }.sumOf { it.amountCent }; val expense = visible.filter { it.type.isExpense }.sumOf { it.amountCent }
                             Text("${visible.size} 笔 · 收入 ${amount(income, hidden)} · 支出 ${amount(expense, hidden)}", Modifier.padding(16.dp)) }
@@ -178,7 +181,7 @@ fun AdvancedFeaturesRoute(repository: LedgerRepository, clock: Clock, onBack: ()
                                     val id = selectedTag!!
                                     mutate { current -> val old = current.transactionTags[row.id].orEmpty(); val changed = if (checked) (old + id).distinct() else old - id; current.copy(transactionTags = if (changed.isEmpty()) current.transactionTags - row.id else current.transactionTags + (row.id to changed)) }
                                 }, modifier = Modifier.semantics { contentDescription = "关联${row.occurredOn}${row.categoryName}" }.testTag("tag_transaction_${row.id}"))
-                                Box(Modifier.weight(1f)) { ReferenceRow(row.categoryName, amount(row.amountCent, hidden), subtitle = "${row.occurredOn} ${row.note}") { if (!assignTags) onDetail(row.id) } }
+                                Box(Modifier.weight(1f)) { LedgerNavigationRow(row.categoryName, amount(row.amountCent, hidden), subtitle = "${row.occurredOn} ${row.note}") { if (!assignTags) onDetail(row.id) } }
                             }
                         }
                         if (visible.isEmpty()) item { Text("没有关联账单，点击关联账单添加。", Modifier.padding(20.dp)) }
@@ -190,7 +193,7 @@ fun AdvancedFeaturesRoute(repository: LedgerRepository, clock: Clock, onBack: ()
                     item { Text(dateText, Modifier.padding(16.dp), style = MaterialTheme.typography.titleMedium) }
                     val dayRows = rows.items.filter { it.occurredOn.toString() == dateText }
                     item { Text("收入 ${amount(dayRows.filter { it.type.isIncome }.sumOf { it.amountCent }, hidden)} · 支出 ${amount(dayRows.filter { it.type.isExpense }.sumOf { it.amountCent }, hidden)}", Modifier.padding(horizontal = 16.dp)) }
-                    items(dayRows, key = { it.id }) { row -> ReferenceRow(row.categoryName, amount(row.amountCent, hidden), subtitle = row.note) { onDetail(row.id) } }
+                    items(dayRows, key = { it.id }) { row -> LedgerNavigationRow(row.categoryName, amount(row.amountCent, hidden), subtitle = row.note) { onDetail(row.id) } }
                     if (dayRows.isEmpty()) item { Text("当日无记录", Modifier.padding(20.dp)) }
                 }
                 "回收站" -> {
@@ -243,7 +246,7 @@ fun AdvancedFeaturesRoute(repository: LedgerRepository, clock: Clock, onBack: ()
 @Composable private fun AdvancedEditor(title: String, dismiss: () -> Unit, enabled: Boolean, save: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
     BackHandler(onBack = dismiss)
     Column(Modifier.fillMaxSize().background(T.Surface).navigationBarsPadding().imePadding().testTag("advanced_editor")) {
-        ReferenceTitle(title, dismiss, blue = true)
+        LedgerCenteredTopBar(title, dismiss, blue = true)
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
         Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.End) {
             TextButton(onClick = dismiss) { Text("取消") }

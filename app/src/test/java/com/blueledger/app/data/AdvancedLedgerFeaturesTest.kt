@@ -125,6 +125,9 @@ class AdvancedLedgerFeaturesTest : LedgerRoomTestBase() {
         val before = repository.observeAdvancedSettings().first()
         repository.updateAdvancedSettings { it.copy(monthStartDay = 0) }.requireFailure()
         repository.updateAdvancedSettings { it.copy(categoryBudgets = listOf(CategoryBudgetRule("cat_income_salary", 5000))) }.requireFailure()
+        repository.updateAdvancedSettings { it.copy(yearlyBudgetCent = 0) }.requireFailure()
+        repository.updateAdvancedSettings { it.copy(yearlyCategoryBudgets = listOf(CategoryBudgetRule("cat_income_salary", 5000))) }.requireFailure()
+        repository.updateAdvancedSettings { it.copy(yearlyCategoryBudgets = listOf(CategoryBudgetRule("cat_expense_food", 5000), CategoryBudgetRule("cat_expense_food", 6000))) }.requireFailure()
         repository.updateAdvancedSettings { it.copy(tags = listOf(LedgerTag("a", "重复"), LedgerTag("b", "重复"))) }.requireFailure()
         repository.updateAdvancedSettings { it.copy(transactionTags = mapOf("missing" to listOf("unknown"))) }.requireFailure()
         assertEquals(before, repository.observeAdvancedSettings().first())
@@ -134,12 +137,14 @@ class AdvancedLedgerFeaturesTest : LedgerRoomTestBase() {
         val id = create()
         repository.updateAdvancedSettings { it.copy(tags = listOf(LedgerTag("travel", "旅行")), transactionTags = mapOf(id to listOf("travel")), categoryBudgets = listOf(CategoryBudgetRule("cat_expense_food", 8000)), recurringRules = listOf(rule("2026-10-08")), monthStartDay = 15) }.requireSuccess()
         repository.softDeleteTransaction(id)
+        repository.updateAdvancedSettings { it.copy(yearlyBudgetCent = 13000000, yearlyCategoryBudgets = listOf(CategoryBudgetRule("cat_expense_food", 200000))) }.requireSuccess()
+        assertEquals(repository.observeAdvancedSettings().first(), LedgerRepositoryImpl(db, clock).observeAdvancedSettings().first())
         val snapshot = repository.exportConsistentSnapshot()
         assertEquals(0, snapshot.transactions.size)
         assertEquals(1, snapshot.recycleBin.size)
         val codec = JsonBackupCodec(clock)
         val decoded = codec.decode(codec.encode(snapshot)) as BackupDecodeResult.Valid
-        assertEquals(3, decoded.summary.schemaVersion)
+        assertEquals(BackupLimits.BACKUP_SCHEMA_VERSION, decoded.summary.schemaVersion)
         repository.permanentlyDeleteTransaction(id).requireSuccess()
         repository.restoreValidatedSnapshot(decoded.validated).requireSuccess()
         assertEquals(snapshot.advanced, repository.observeAdvancedSettings().first())
@@ -190,6 +195,10 @@ class AdvancedLedgerFeaturesTest : LedgerRoomTestBase() {
         fun json() = JSONObject(validText)
         val wrongType = json().apply { getJSONObject("advanced").put("monthStartDay", "15") }
         assertTrue(codec.decode(wrongType.toString()) is BackupDecodeResult.Invalid)
+        val wrongYearType = json().apply { getJSONObject("advanced").put("yearlyBudgetCent", "1500") }
+        assertTrue(codec.decode(wrongYearType.toString()) is BackupDecodeResult.Invalid)
+        val wrongYearCategory = json().apply { getJSONObject("advanced").put("yearlyCategoryBudgets", JSONArray().put(JSONObject().put("categoryId", "cat_expense_food").put("amountCent", "200"))) }
+        assertTrue(codec.decode(wrongYearCategory.toString()) is BackupDecodeResult.Invalid)
         val missing = json().apply { remove("advanced") }
         assertTrue(codec.decode(missing.toString()) is BackupDecodeResult.Invalid)
         val broken = json().apply { getJSONObject("advanced").put("categoryBudgets", JSONArray().put(JSONObject().put("categoryId", "missing").put("amountCent", 200))) }
@@ -223,7 +232,7 @@ class AdvancedLedgerFeaturesTest : LedgerRoomTestBase() {
         val upgraded = LedgerDatabase.create(context, name)
         try {
             val sql = upgraded.openHelper.readableDatabase
-            assertEquals(3, sql.version)
+            assertEquals(LedgerDatabase.VERSION, sql.version)
             sql.query("SELECT amountCent,deletedAtEpochMillis,requestId FROM transactions WHERE id='deleted-old'").use { cursor -> assertTrue(cursor.moveToFirst()); assertEquals(1250L, cursor.getLong(0)); assertEquals(2L, cursor.getLong(1)); assertEquals("original-request", cursor.getString(2)) }
             assertEquals(AdvancedLedgerSettings(), LedgerRepositoryImpl(upgraded, clock).observeAdvancedSettings().first())
         } finally { upgraded.close(); context.deleteDatabase(name) }

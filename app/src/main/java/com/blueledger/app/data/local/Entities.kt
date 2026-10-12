@@ -93,6 +93,7 @@ data class AccountEntity(
     val updatedAtEpochMillis: Long,
     @androidx.room.ColumnInfo(defaultValue = "''") val note: String = "",
     @androidx.room.ColumnInfo(defaultValue = "''") val openingHistory: String = "",
+    @androidx.room.ColumnInfo(defaultValue = "'OTHER'") val location: com.blueledger.app.core.model.AccountLocation = com.blueledger.app.core.model.AccountLocation.infer(name, kind),
 )
 
 /** 月预算表。`yearMonth`（`YYYY-MM`）为主键，天然保证每月独立且唯一。 */

@@ -23,4 +23,6 @@ class LedgerConverters {
 
     @TypeConverter
     fun fromAccountKind(value: AccountKind): String = value.name
+    @TypeConverter fun toAccountLocation(value: String) = com.blueledger.app.core.model.AccountLocation.valueOf(value)
+    @TypeConverter fun fromAccountLocation(value: com.blueledger.app.core.model.AccountLocation) = value.name
 }

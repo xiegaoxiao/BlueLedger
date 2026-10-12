@@ -1,5 +1,6 @@
 package com.blueledger.app.feature.management
 
+import com.blueledger.app.core.designsystem.LedgerCenteredTopBar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -84,8 +85,7 @@ import com.blueledger.app.core.designsystem.LedgerTopBar
 import com.blueledger.app.core.model.CategoryIcons
 import com.blueledger.app.core.model.LedgerCategory
 import com.blueledger.app.core.model.TransactionType
-import com.blueledger.app.feature.reference.ReferenceTitle
-import com.blueledger.app.feature.reference.ReferenceTabs
+import com.blueledger.app.core.designsystem.LedgerUnderlineTabs
 import kotlin.math.roundToInt
 
 /**
@@ -156,7 +156,7 @@ fun CategoriesScreen(
             .fillMaxSize()
             .background(BlueLedgerTokens.Background)
             .testTag(ManagementTags.CATEGORIES_SCREEN),
-    ) {        ReferenceTitle(
+    ) {        LedgerCenteredTopBar(
             title = "类别设置", blue = true,
             onBack = onBack,
             action = {

@@ -140,6 +140,10 @@ interface LedgerRepository {
 
     suspend fun upsertAccount(command: AccountCommand): MutationResult
 
+    /** Atomic internal transfer; adjusts both asset bases without creating income or expense. */
+    suspend fun transferAssets(fromId: String, toId: String, amountCent: Long): MutationResult =
+        MutationResult.Failure(com.blueledger.app.core.model.LedgerError.Storage("当前账本不支持资产转账"))
+
     /**
      * 归档/取消归档账户。
      * 归档默认账户时必须提供 [replacementDefaultId]；

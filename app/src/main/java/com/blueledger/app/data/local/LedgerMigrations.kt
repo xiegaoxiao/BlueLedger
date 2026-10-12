@@ -32,5 +32,18 @@ object LedgerMigrations {
             db.execSQL("CREATE TABLE IF NOT EXISTS advanced_settings (id INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(id))")
         }
     }
-    val ALL: Array<Migration> = arrayOf(V1_TO_V2, V2_TO_V3)
+    val V3_TO_V4: Migration = object : Migration(3, 4) {
+        override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE accounts ADD COLUMN location TEXT NOT NULL DEFAULT 'OTHER'")
+            db.execSQL("""UPDATE accounts SET location = CASE
+                WHEN name LIKE '%小荷包%' THEN 'ALIPAY_POCKET'
+                WHEN name LIKE '%余额宝%' THEN 'ALIPAY_YUEBAO'
+                WHEN name LIKE '%支付宝%' THEN 'ALIPAY_BALANCE'
+                WHEN name LIKE '%零钱通%' THEN 'WECHAT_LINGQI'
+                WHEN name LIKE '%微信%' THEN 'WECHAT_BALANCE'
+                WHEN kind IN ('BANK_CARD','CREDIT_CARD') THEN 'BANK_CARD'
+                ELSE 'OTHER' END""")
+        }
+    }
+    val ALL: Array<Migration> = arrayOf(V1_TO_V2, V2_TO_V3, V3_TO_V4)
 }

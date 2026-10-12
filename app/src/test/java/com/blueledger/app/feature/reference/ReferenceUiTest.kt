@@ -95,14 +95,28 @@ class ReferenceUiTest {
         assertEquals(TransactionType.INCOME, ReferencePreferences(ui.activity).defaultType)
     }
     @Test fun dateSheetCancelsWithoutChangingTheEntryOrSavingAnything() {
+        assertDateSheetCancellation("date-picker")
+    }
+
+    @Test
+    @Config(qualifiers = "w320dp-h640dp-xhdpi")
+    fun dateSheetActionsFitDoubleFontAndCancelWithoutSaving() {
+        val configuration = android.content.res.Configuration(ui.activity.resources.configuration).apply { fontScale = 2f }
+        @Suppress("DEPRECATION")
+        ui.activity.resources.updateConfiguration(configuration, ui.activity.resources.displayMetrics)
+        assertDateSheetCancellation("date-picker-320dp-2x")
+    }
+
+    private fun assertDateSheetCancellation(imageName: String) {
         open()
         ui.onNodeWithTag("global_record_button").performClick(); await("category_cat_expense_food")
         ui.onNodeWithTag("category_cat_expense_food").performClick(); await("key_date")
         ui.onNodeWithTag("key_1").performClick(); ui.onNodeWithTag("key_2").performClick()
         val entered = ui.onNodeWithTag("amount_display").fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.Text].single().text
         ui.onNodeWithTag("key_date").performClick(); await("date_picker")
-        ui.onNodeWithTag("date_confirm").assertIsDisplayed(); ui.onNodeWithTag("date_year").assertIsDisplayed()
-        snapshot("date-picker")
+        ui.onNodeWithTag("date_confirm").assertIsDisplayed(); ui.onNodeWithTag("date_dismiss").assertIsDisplayed()
+        ui.onNodeWithText("选择日期").assertIsDisplayed(); ui.onNodeWithTag("date_year").assertIsDisplayed()
+        snapshot(imageName)
         ui.onNodeWithTag("date_dismiss").performClick(); await("key_date")
         ui.onNodeWithTag("amount_display").assertTextEquals(entered)
         assertEquals(0, runBlocking { repository.observeTransactions(TransactionFilter()).first().items.size })
@@ -111,18 +125,71 @@ class ReferenceUiTest {
         val saved = seed(); open(); await("overview_row_${saved.transactionId}")
         ui.onNodeWithTag("tab_statistics").performClick(); await("stats_rank_cat_expense_food")
         listOf("stats_tab_week", "stats_tab_month", "stats_tab_year").forEach { ui.onNodeWithTag(it).assertIsDisplayed() }
-        // 汇总行展示「总支出：」和去掉多余小数零的金额。
-        ui.onNodeWithTag("stats_summary_card").assertTextContains("总支出：12.5", substring = true)
+        ui.onNodeWithTag("stats_summary_card").assertTextContains("总支出：12.50", substring = true)
         ui.onNodeWithTag("stats_tab_month").performClick(); await("stats_rank_cat_expense_food")
-        ui.onNodeWithTag("stats_summary_card").assertTextContains("总支出：12.5", substring = true)
+        ui.onNodeWithTag("stats_summary_card").assertTextContains("总支出：12.50", substring = true)
         snapshot("chart-month")
+    }
+    @Test @Config(qualifiers = "w361dp-h616dp-xhdpi")
+    fun emptyChartMatchesReferenceProportions() {
+        open(); ui.onNodeWithTag("tab_statistics").performClick(); await("stats_empty")
+        ui.onNodeWithText("暂无数据").assertIsDisplayed()
+        ui.onNodeWithTag("stats_summary_card").assertTextContains("总支出：0.00", substring = true)
+        val title = ui.onNodeWithTag("stats_ranking_title").fetchSemanticsNode().boundsInRoot
+        val density = ui.activity.resources.displayMetrics.density
+        assertEquals(306f, title.top / density, 3f)
+        snapshot("chart-empty-reference")
+    }
+    @Test @Config(qualifiers = "w320dp-h548dp-xhdpi")
+    fun emptyChartSmallScreenKeepsDatesAndRankingVisible() {
+        open(); ui.onNodeWithTag("tab_statistics").performClick(); await("stats_empty")
+        ui.onNodeWithTag("stats_ranking_title").assertIsDisplayed()
+        ui.onNodeWithTag("stats_empty").assertIsDisplayed()
+        ui.onNodeWithTag("reference_line_chart").assertIsDisplayed()
+        snapshot("chart-empty-small")
+    }
+    @Test @Config(qualifiers = "w361dp-h616dp-xhdpi")
+    fun chartTypePanelMatchesReferenceAndChangesOnlyType() = checkChartTypePanel("normal")
+
+    @Test @Config(qualifiers = "w320dp-h548dp-xhdpi")
+    fun chartTypePanelSmallScreenKeepsSelectionAndDismissal() = checkChartTypePanel("small")
+
+    private fun checkChartTypePanel(size: String) {
+        seed(); open(); ui.onNodeWithTag("tab_statistics").performClick(); await("stats_rank_cat_expense_food")
+        ui.onNodeWithTag("stats_tab_year").performClick(); await("stats_rank_cat_expense_food")
+        ui.onNodeWithTag("stats_type_selector").performClick(); await("stats_type_expense")
+        ui.onNodeWithTag("stats_type_expense").assertIsSelected()
+        ui.onNodeWithTag("stats_type_income").assertIsNotSelected()
+        val density = ui.activity.resources.displayMetrics.density
+        val scale = ui.activity.resources.configuration.screenWidthDp / 361f
+        val expense = ui.onNodeWithTag("stats_type_expense").fetchSemanticsNode().boundsInRoot
+        val income = ui.onNodeWithTag("stats_type_income").fetchSemanticsNode().boundsInRoot
+        assertEquals(81f * scale, expense.top / density, 2f)
+        assertEquals(50f * scale, expense.height / density, 1f)
+        assertEquals(ui.activity.resources.configuration.screenWidthDp.toFloat(), expense.width / density, 1f)
+        assertEquals(expense.bottom + .5f * density, income.top, 1f)
+        ui.onNodeWithTag("stats_type_income").performClick(); await("stats_empty")
+        ui.onNodeWithTag("stats_type_menu").assertDoesNotExist()
+        ui.onNodeWithTag("stats_tab_year").assertIsSelected()
+        ui.onNodeWithTag("stats_summary_card").assertTextContains("总收入：0.00", substring = true)
+        (1..12).forEach { ui.onNodeWithText("${it}月").assertIsDisplayed() }
+        snapshot("chart-income-year-$size")
+        ui.onNodeWithTag("stats_type_selector").performClick(); await("stats_type_income")
+        ui.onNodeWithTag("stats_type_income").assertIsSelected()
+        ui.onNodeWithTag("stats_type_menu_scrim").performTouchInput { click(androidx.compose.ui.geometry.Offset(center.x, height - 12f)) }
+        ui.onNodeWithTag("stats_type_menu").assertDoesNotExist()
+        ui.onNodeWithTag("stats_summary_card").assertTextContains("总收入：0.00", substring = true)
+        ui.onNodeWithTag("stats_type_selector").performClick(); await("stats_type_expense")
+        ui.onNodeWithTag("stats_type_expense").performClick(); await("stats_rank_cat_expense_food")
+        ui.onNodeWithTag("stats_summary_card").assertTextContains("总支出：12.50", substring = true)
+        assertEquals(1, runBlocking { repository.observeTransactions(TransactionFilter()).first().items.size })
     }
     @Test fun weeklyChartShowsAllSevenDaysAndKeepsRelativeLabelsWhenBrowsingHistory() {
         seed(); open()
         ui.onNodeWithTag("tab_statistics").performClick(); await("stats_rank_cat_expense_food")
         val start = ChartRange.week(clock.today()).from
         (0L..6L).forEach { day ->
-            ui.onNodeWithText("${start.plusDays(day).dayOfMonth}日").assertIsDisplayed()
+            ui.onNodeWithText(start.plusDays(day).format(java.time.format.DateTimeFormatter.ofPattern("MM-dd"))).assertIsDisplayed()
         }
         ui.onNodeWithTag("stats_month_label").assertTextContains("本周")
         val currentChartTop = ui.onNodeWithTag("reference_line_chart").fetchSemanticsNode().boundsInRoot.top
@@ -132,7 +199,7 @@ class ReferenceUiTest {
         ui.waitUntil(5_000) {
             ui.onNodeWithTag("reference_line_chart").fetchSemanticsNode().boundsInRoot.top == currentChartTop
         }
-        ui.onNodeWithText("›").performClick()
+        ui.onNodeWithTag("stats_next_period").performClick()
         ui.onNodeWithTag("stats_month_label").assertTextContains("本周")
         ui.waitUntil(5_000) {
             ui.onNodeWithTag("reference_line_chart").fetchSemanticsNode().boundsInRoot.top == currentChartTop
@@ -269,8 +336,8 @@ class ReferenceUiTest {
 
     private fun assertBudgetKeypadBounds() {
         open(); ui.onNodeWithTag("home_预算").performClick()
-        ui.onNodeWithText("编辑").performClick()
-        ui.onNodeWithText("编辑月度总预算").performClick(); await("key_0")
+        await("budget_empty_action")
+        ui.onNodeWithTag("budget_empty_action").performClick(); await("key_0")
         val minimum = 48 * ui.activity.resources.displayMetrics.density
         (listOf("key_dot", "key_delete") + (0..9).map { "key_$it" }).forEach { tag ->
             val bounds = ui.onNodeWithTag(tag).assertIsDisplayed().fetchSemanticsNode().boundsInWindow

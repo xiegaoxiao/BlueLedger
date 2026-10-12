@@ -11,9 +11,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -244,6 +247,8 @@ fun LedgerTransactionRow(
     archived: Boolean = false,
     onClick: (() -> Unit)? = null,
     testTag: String? = null,
+    compactScale: Float? = null,
+    leadingIcon: (@Composable () -> Unit)? = null,
 ) {
     val hide = hideAmount ?: LocalHideAmounts.current
     val rowShape = RoundedCornerShape(BlueLedgerTokens.RadiusInput)
@@ -280,27 +285,32 @@ fun LedgerTransactionRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(BlueLedgerTokens.SpaceM),
     ) {
-        LedgerCategoryIcon(iconKey = iconKey, selected = false, archived = archived)
+        if (leadingIcon != null) leadingIcon() else LedgerCategoryIcon(iconKey = iconKey, selected = false, archived = archived)
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(BlueLedgerTokens.SpaceXs),
         ) {
             Text(
                 text = title,
-                style = LedgerTextStyles.bodyStrong,
+                style = if (compactScale != null) LedgerTextStyles.body.copy(fontSize = (14 * compactScale).sp) else LedgerTextStyles.bodyStrong,
                 color = BlueLedgerTokens.TextPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = subtitle,
-                style = LedgerTextStyles.caption,
+                style = if (compactScale != null) LedgerTextStyles.caption.copy(fontSize = (11 * compactScale).sp) else LedgerTextStyles.caption,
                 color = BlueLedgerTokens.TextSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        LedgerAmountText(
+        if (compactScale != null) Box(Modifier.widthIn(max = (120 * compactScale).dp)) {
+            CompositionLocalProvider(LocalHideAmounts provides hide) {
+            LedgerFittedAmountText(amountCent, fontSizeSp = 14 * compactScale, prefix = if (type.isIncome) "+" else "−",
+                groupThousands = false, alignEnd = true)
+            }
+        } else LedgerAmountText(
             cents = amountCent,
             isIncome = type.isIncome,
             showSign = true,

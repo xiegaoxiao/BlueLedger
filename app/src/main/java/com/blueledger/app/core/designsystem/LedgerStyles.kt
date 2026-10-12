@@ -92,9 +92,9 @@ object LedgerTextStyles {
 
     /** 数字键盘按键文字。 */
     val keypadDigit = TextStyle(
-        fontSize = 24.sp,
-        lineHeight = 30.sp,
-        fontWeight = FontWeight.Medium,
+        fontSize = 22.sp,
+        lineHeight = 28.sp,
+        fontWeight = FontWeight.Normal,
         fontFeatureSettings = "tnum",
     )
 

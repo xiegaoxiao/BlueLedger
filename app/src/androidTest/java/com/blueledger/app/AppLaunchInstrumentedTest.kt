@@ -66,9 +66,13 @@ class AppLaunchInstrumentedTest {
         composeRule.onNodeWithTag("key_delete").assertIsDisplayed()
         composeRule.onNodeWithTag("field_note").performClick()
         composeRule.waitUntil(timeoutMillis = 10_000) {
-            ViewCompat.getRootWindowInsets(composeRule.activity.window.decorView)
-                ?.isVisible(WindowInsetsCompat.Type.ime()) == true
+            val insets = ViewCompat.getRootWindowInsets(composeRule.activity.window.decorView)
+            insets?.isVisible(WindowInsetsCompat.Type.ime()) == true &&
+                insets.getInsets(WindowInsetsCompat.Type.ime()).bottom > 0
         }
+        // Visibility is reported before the native IME's resize animation finishes.
+        android.os.SystemClock.sleep(600)
+        composeRule.waitForIdle()
         composeRule.onNodeWithTag(TAG_ENTRY_KEYBOARD).assertDoesNotExist()
         composeRule.onNodeWithTag(TAG_SAVE).assertIsDisplayed()
         val decor = composeRule.activity.window.decorView
@@ -76,6 +80,14 @@ class AppLaunchInstrumentedTest {
             .getInsets(WindowInsetsCompat.Type.ime()).bottom
         val save = composeRule.onNodeWithTag(TAG_SAVE).fetchSemanticsNode().boundsInWindow
         assertTrue("保存按钮必须在真实输入法上方", save.bottom <= decor.height - imeBottom + 1)
+        if (composeRule.activity.packageName == "com.blueledger.app.adbcheck") {
+            val bitmap = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+            val directory = java.io.File(composeRule.activity.getExternalFilesDir(null), "component-ui").apply { mkdirs() }
+            java.io.File(directory, "entry-note-ime.png").outputStream().use {
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+            }
+            bitmap.recycle()
+        }
         // 不提交账单，真机测试不修改用户记账数据。
     }
 

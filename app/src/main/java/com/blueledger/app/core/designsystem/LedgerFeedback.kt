@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -30,8 +31,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.PaddingValues
 import com.blueledger.app.app.ui.BlueLedgerTokens
 
 /**
@@ -51,10 +55,11 @@ fun LedgerConfirmDialog(
     testTag: String? = null,
     testTagConfirm: String = "dialog_confirm",
     testTagDismiss: String = "dialog_dismiss",
+    enabled: Boolean = true,
     content: (@Composable () -> Unit)? = null,
 ) {
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (enabled) onDismiss() },
         modifier = modifier.then(if (testTag != null) Modifier.testTag(testTag) else Modifier),
         shape = RoundedCornerShape(BlueLedgerTokens.RadiusCard),
         containerColor = BlueLedgerTokens.Surface,
@@ -76,28 +81,22 @@ fun LedgerConfirmDialog(
             }
         },
         confirmButton = {
-            TextButton(
+            LedgerActionButton(
+                text = confirmText,
                 onClick = onConfirm,
-                modifier = Modifier
-                    .heightIn(min = BlueLedgerTokens.MinTouchTarget)
-                    .testTag(testTagConfirm),
-                colors = ButtonDefaults.textButtonColors(
-                    contentColor = if (destructive) BlueLedgerTokens.Risk else BlueLedgerTokens.Primary,
-                ),
-            ) {
-                Text(text = confirmText, style = LedgerTextStyles.button)
-            }
+                style = if (destructive) LedgerActionStyle.DESTRUCTIVE else LedgerActionStyle.PRIMARY,
+                enabled = enabled,
+                testTag = testTagConfirm,
+            )
         },
         dismissButton = {
-            TextButton(
+            LedgerActionButton(
+                text = dismissText,
                 onClick = onDismiss,
-                modifier = Modifier
-                    .heightIn(min = BlueLedgerTokens.MinTouchTarget)
-                    .testTag(testTagDismiss),
-                colors = ButtonDefaults.textButtonColors(contentColor = BlueLedgerTokens.TextSecondary),
-            ) {
-                Text(text = dismissText, style = LedgerTextStyles.button)
-            }
+                style = LedgerActionStyle.NEUTRAL,
+                enabled = enabled,
+                testTag = testTagDismiss,
+            )
         },
     )
 }
@@ -112,33 +111,37 @@ fun LedgerEmptyState(
     onAction: (() -> Unit)? = null,
     icon: ImageVector = Icons.Outlined.Inbox,
     testTag: String? = null,
+    subtle: Boolean = false,
+    illustration: (@Composable () -> Unit)? = null,
+    contentScale: Float = 1f,
+    contentPadding: androidx.compose.ui.unit.Dp = BlueLedgerTokens.SpaceXl,
 ) {
     Column(
         modifier = modifier
             .fillMaxWidth()
             .then(if (testTag != null) Modifier.testTag(testTag) else Modifier)
-            .padding(BlueLedgerTokens.SpaceXl),
+            .padding(contentPadding),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(BlueLedgerTokens.SpaceM),
+        verticalArrangement = Arrangement.spacedBy(if (subtle) (4 * contentScale).dp else BlueLedgerTokens.SpaceM),
     ) {
         Box(
             modifier = Modifier
-                .size(LedgerComponentSizes.emptyIllustration)
-                .clip(CircleShape)
-                .background(BlueLedgerTokens.PrimarySoft),
+                .size(LedgerComponentSizes.emptyIllustration * contentScale)
+                  .then(if (subtle) Modifier else Modifier.clip(CircleShape))
+                .background(if (subtle) Color.Transparent else BlueLedgerTokens.PrimarySoft),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
+            if (illustration != null) illustration() else Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = BlueLedgerTokens.Primary,
-                modifier = Modifier.size(LedgerComponentSizes.iconXLarge),
+                tint = if (subtle) BlueLedgerTokens.TextSecondary.copy(alpha = .4f) else BlueLedgerTokens.Primary,
+                modifier = Modifier.size(if (subtle) 56.dp else LedgerComponentSizes.iconXLarge),
             )
         }
         Text(
             text = title,
-            style = LedgerTextStyles.cardTitle,
-            color = BlueLedgerTokens.TextPrimary,
+            style = if (subtle) LedgerTextStyles.body.copy(fontSize = (14 * contentScale).sp, lineHeight = (20 * contentScale).sp) else LedgerTextStyles.cardTitle,
+            color = if (subtle) BlueLedgerTokens.TextSecondary else BlueLedgerTokens.TextPrimary,
             textAlign = TextAlign.Center,
         )
         if (description != null) {
@@ -153,7 +156,12 @@ fun LedgerEmptyState(
             LedgerPrimaryButton(
                 text = actionText,
                 onClick = onAction,
-                modifier = Modifier.padding(top = BlueLedgerTokens.SpaceXs),
+                  modifier = Modifier.then(if (subtle) Modifier.widthIn(max = if (LocalDensity.current.fontScale > 1.4f) 240.dp else (148 * contentScale).dp) else Modifier)
+                      .padding(top = if (subtle) (28 * contentScale).dp else BlueLedgerTokens.SpaceXs),
+                shape = if (subtle) RoundedCornerShape(50) else RoundedCornerShape(BlueLedgerTokens.RadiusButton),
+                  height = if (subtle && LocalDensity.current.fontScale <= 1.4f) (42 * contentScale).dp else null,
+                  textStyle = if (subtle) LedgerTextStyles.body.copy(fontSize = (14 * contentScale).sp, lineHeight = (20 * contentScale).sp) else LedgerTextStyles.button,
+                  contentPadding = if (subtle) PaddingValues(horizontal = 12.dp, vertical = 8.dp) else PaddingValues(horizontal = BlueLedgerTokens.SpaceL, vertical = BlueLedgerTokens.SpaceM),
                 testTag = testTag?.let { "${it}_action" },
                 leadingIcon = {
                     Icon(
